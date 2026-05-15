@@ -692,6 +692,14 @@ describe("runCodexAppServerAttempt", () => {
   });
 
   afterEach(async () => {
+    await clearCodexAppServerBinding({ sessionKey: "agent:main:session-1" });
+    await clearCodexAppServerBinding("session");
+    await clearCodexAppServerBinding("session-1");
+    replaceSqliteSessionTranscriptEvents({
+      agentId: "main",
+      sessionId: "session-1",
+      events: [],
+    });
     resetCodexAppServerClientFactoryForTest();
     __testing.resetOpenClawCodingToolsFactoryForTests();
     resetCodexRateLimitCacheForTests();
