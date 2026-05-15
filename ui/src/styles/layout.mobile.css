@@ -889,25 +889,24 @@
     min-width: 86px;
   }
 
-  .session-compaction-trigger {
+  .session-checkpoint-toggle {
     padding: 6px 7px;
   }
 
-  .session-details-panel {
+  .session-checkpoint-panel {
+    margin-left: 10px;
     padding: 12px;
   }
 
-  .session-details-panel__hero,
-  .session-details-section {
-    padding: 12px;
-  }
-
-  .session-details-panel__title {
+  .session-checkpoint-panel__title {
     max-width: 100%;
   }
 
-  .session-details-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .session-checkpoint-panel__header,
+  .session-checkpoint-card__topline,
+  .session-checkpoint-card__actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .session-key-cell .session-link,

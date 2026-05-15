@@ -43,14 +43,17 @@ describe("sessions table responsive styles", () => {
     const mobileCss = readStyleSheet("ui/src/styles/layout.mobile.css");
 
     expect(componentsCss).toContain(".session-compaction-cell {");
-    expect(componentsCss).toContain(".session-compaction-trigger {");
+    expect(componentsCss).toContain(".session-checkpoint-toggle {");
     expect(componentsCss).toContain(".session-status-badge {");
-    expect(componentsCss).toContain(".sessions-table tbody tr.session-data-row > td {");
+    expect(componentsCss).toContain(".session-data-row--expanded td {");
     expect(componentsCss).toContain(".session-runtime-cell .mono {");
     expect(componentsCss).toContain("text-overflow: ellipsis;");
-    expect(componentsCss).toContain(".session-details-panel {");
-    expect(componentsCss).not.toContain(".session-checkpoint-toggle {");
+    expect(componentsCss).toContain(".session-checkpoint-panel {");
+    expect(componentsCss).toContain(".session-checkpoint-card {");
+    expect(componentsCss).not.toContain(".session-details-panel {");
     expect(mobileCss).toContain(".data-table.sessions-table {\n    min-width: 560px;");
+    expect(mobileCss).toContain(".session-checkpoint-toggle {");
+    expect(mobileCss).toContain(".session-checkpoint-panel {");
     expect(mobileCss).toContain(
       ".sessions-table th:nth-child(12),\n  .sessions-table td:nth-child(12),\n  .sessions-table th:nth-child(13),\n  .sessions-table td:nth-child(13)",
     );

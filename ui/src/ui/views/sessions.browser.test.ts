@@ -86,8 +86,9 @@ function sessionsTableHtml() {
                 <td class="session-token-cell">123456 / 200000</td>
                 <td class="session-compaction-col">
                   <div class="session-compaction-cell">
-                    <button class="session-compaction-trigger" type="button" aria-expanded="true">
-                      <span class="session-compaction-count">1 Checkpoint</span>
+                    <button class="session-checkpoint-toggle" type="button" aria-expanded="true">
+                      <span>1 Checkpoint</span>
+                      <span class="session-checkpoint-toggle__icon" aria-hidden="true"></span>
                     </button>
                   </div>
                 </td>
@@ -98,35 +99,25 @@ function sessionsTableHtml() {
               </tr>
               <tr class="session-checkpoint-details-row">
                 <td colspan="13">
-                  <div class="session-details-panel">
-                    <div class="session-details-panel__hero">
+                  <div class="session-checkpoint-panel">
+                    <div class="session-checkpoint-panel__header">
                       <div>
-                        <div class="session-details-panel__eyebrow">Session details</div>
-                        <div class="session-details-panel__title">agent:main:main</div>
+                        <div class="session-checkpoint-panel__eyebrow">Compaction history</div>
+                        <div class="session-checkpoint-panel__title">agent:main:main</div>
+                        <div class="session-checkpoint-panel__sub">
+                          Earlier transcript state is preserved for branch or restore.
+                        </div>
                       </div>
-                      <div class="session-details-panel__badges">
-                        <span class="session-status-badge session-status-badge--live" aria-label="Status: Live">
-                          <span class="session-status-badge__dot" aria-hidden="true"></span>
-                          <span class="session-status-badge__label">Live</span>
-                        </span>
-                        <span class="data-table-badge data-table-badge--direct">direct</span>
-                      </div>
-                    </div>
-                    <div class="session-details-grid">
-                      <div class="session-detail-stat">
-                        <div class="session-detail-stat__label">Tokens</div>
-                        <div class="session-detail-stat__value">123456 / 200000</div>
-                      </div>
-                      <div class="session-detail-stat">
-                        <div class="session-detail-stat__label">Compaction</div>
-                        <div class="session-detail-stat__value">1 Checkpoint</div>
+                      <div class="session-checkpoint-panel__stats" aria-label="Session checkpoint summary">
+                        <span><strong>1</strong> checkpoint</span>
+                        <span><strong>38,920</strong> current tokens</span>
                       </div>
                     </div>
-                    <div class="session-details-section">
-                      <div class="session-details-panel__eyebrow">Compaction history</div>
-                      <div class="session-checkpoint-list">
-                        <div class="session-checkpoint-card">
-                          <div class="session-checkpoint-card__header">
+                    <div class="session-checkpoint-list">
+                      <article class="session-checkpoint-card">
+                        <div class="session-checkpoint-card__timeline" aria-hidden="true"></div>
+                        <div class="session-checkpoint-card__body">
+                          <div class="session-checkpoint-card__topline">
                             <strong>manual - now</strong>
                             <span class="muted session-checkpoint-card__delta">122,414 to 38,920 tokens</span>
                           </div>
@@ -134,7 +125,7 @@ function sessionsTableHtml() {
                             Earlier transcript state is preserved here for branch or restore.
                           </div>
                         </div>
-                      </div>
+                      </article>
                     </div>
                   </div>
                 </td>
@@ -169,13 +160,13 @@ describeBrowserLayout("sessions responsive browser layout", () => {
     const metrics = await page.evaluate(() => {
       const container = document.querySelector(".data-table-container");
       const compaction = document.querySelector(".session-compaction-cell");
-      const trigger = document.querySelector(".session-compaction-trigger");
+      const trigger = document.querySelector(".session-checkpoint-toggle");
       const status = document.querySelector(".session-status-badge");
       const statusLabel = document.querySelector(".session-status-badge__label");
       const runtime = document.querySelector(".session-runtime-cell .mono");
       const kind = document.querySelector(".data-table-badge");
       const key = document.querySelector(".session-key-cell .session-link");
-      const details = document.querySelector(".session-details-panel");
+      const details = document.querySelector(".session-checkpoint-panel");
       if (
         !(container instanceof HTMLElement) ||
         !(compaction instanceof HTMLElement) ||
@@ -200,7 +191,7 @@ describeBrowserLayout("sessions responsive browser layout", () => {
         statusWhiteSpace: getComputedStyle(status).whiteSpace,
         runtimeWhiteSpace: getComputedStyle(runtime).whiteSpace,
         hasTrigger: trigger !== null,
-        hasLegacyButton: document.querySelector(".session-checkpoint-toggle") !== null,
+        hasLegacyButton: document.querySelector(".session-compaction-trigger") !== null,
         hasDetails: details !== null,
         compactionVisible:
           compactionRect.left >= containerRect.left && compactionRect.right <= containerRect.right,

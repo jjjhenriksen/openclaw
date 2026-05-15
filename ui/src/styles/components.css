@@ -84,6 +84,55 @@
   font-weight: 600;
 }
 
+.login-gate__failure {
+  margin-top: 14px;
+}
+
+.login-gate__failure-title {
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-gate__failure-summary {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.login-gate__failure-steps {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.login-gate__failure-steps li + li {
+  margin-top: 4px;
+}
+
+.login-gate__failure-detail {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.login-gate__failure-detail summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.login-gate__failure-raw {
+  margin-top: 6px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.login-gate__failure-docs {
+  display: inline-flex;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
 .login-gate__help {
   margin-top: 20px;
   padding-top: 16px;
@@ -901,6 +950,14 @@
   transition:
     border-color var(--duration-fast) ease,
     box-shadow var(--duration-fast) ease;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .field input,
+  .field textarea,
+  .field select {
+    font-size: 16px;
+  }
 }
 
 .field input:focus,
