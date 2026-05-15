@@ -1031,8 +1031,10 @@ export async function runCodexAppServerAttempt(
       channelId: hookChannelId,
     },
   });
-  const hadSessionFile = await pathExists(activeSessionFile);
-  let historyMessages = (await readMirroredSessionHistoryMessages(activeSessionFile)) ?? [];
+  const hadTranscript = hasSqliteSessionTranscriptEvents({
+    agentId: sessionAgentId,
+    sessionId: activeSessionId,
+  });
   const hookContextWindowFields = {
     ...(params.contextWindowInfo?.tokens
       ? { contextTokenBudget: params.contextWindowInfo.tokens }
@@ -1046,6 +1048,11 @@ export async function runCodexAppServerAttempt(
       ? { contextWindowReferenceTokens: params.contextWindowInfo.referenceTokens }
       : {}),
   };
+  let historyMessages =
+    (await readMirroredSessionHistoryMessages({
+      agentId: sessionAgentId,
+      sessionId: activeSessionId,
+    })) ?? [];
   const hookContext = {
     runId: params.runId,
     agentId: sessionAgentId,
@@ -2807,16 +2814,22 @@ export async function runCodexAppServerAttempt(
         },
       );
       try {
-        const preRetrySessionFile = activeSessionFile;
+        const preRetrySessionId = activeSessionId;
         const compactedForRetry = await forceContextEngineCompactionForCodexOverflow(
           turnStartError,
           {
             threadId: thread.threadId,
           },
         );
-        await clearCodexAppServerBinding(preRetrySessionFile);
-        if (activeSessionFile !== preRetrySessionFile) {
-          await clearCodexAppServerBinding(activeSessionFile);
+        await clearCodexAppServerBinding({
+          sessionKey: sandboxSessionKey,
+          sessionId: preRetrySessionId,
+        });
+        if (activeSessionId !== preRetrySessionId) {
+          await clearCodexAppServerBinding({
+            sessionKey: sandboxSessionKey,
+            sessionId: activeSessionId,
+          });
         }
         if (compactedForRetry) {
           await rebuildPromptAfterContextEngineCompaction();
