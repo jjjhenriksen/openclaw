@@ -58,6 +58,14 @@ describe("chat layout styles", () => {
     expect(css).toContain("height: 22px;");
   });
 
+  it("sizes desktop chat header selects to their selected option", () => {
+    const css = readLayoutCss();
+
+    expect(css).toContain("field-sizing: content;");
+    expect(css).toContain("width: fit-content;");
+    expect(css).toContain("justify-self: start;");
+  });
+
   it("keeps composer controls labeled and large enough without shrinking mobile taps", () => {
     const css = readLayoutCss();
 

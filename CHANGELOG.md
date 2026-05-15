@@ -14,6 +14,7 @@ Docs: https://docs.openclaw.ai
 - Twitch: keep gateway accounts running until shutdown instead of treating successful monitor startup as a clean channel exit, preventing immediate auto-restart loops. Fixes #60071. (#81853) Thanks @edenfunf.
 - Agents/auto-reply: honor `agents.defaults.silentReply` and per-surface group silent-reply policy when generic agent-run failure fallbacks decide whether to send visible fallback text. Fixes #82060. (#82086) Thanks @taozengabc.
 - Control UI/Sessions: polish session scanning, token usage, and compaction checkpoint history affordances. Thanks @BunsDev.
+- Control UI/WebChat: size desktop chat header dropdowns to their selected option text so short selections do not leave excess empty chrome. Thanks @BunsDev.
 - Control UI/WebChat: focus the composer when users click the visible input chrome and restore larger, labeled desktop composer controls while preserving compact mobile taps. Fixes #45656. Thanks @BunsDev.
 - System events: keep owner downgrades in structured metadata while rendering queued prompt text as plain `System:` lines, preserving least-privilege wakeups without prompt-visible trust labels. (#82067)
 - Slack: default outbound bot link unfurls off so agent-sent URLs no longer expand into inline previews unless `channels.slack.unfurlLinks` is enabled. (#82123) Thanks @kibi-bsp.

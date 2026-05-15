@@ -335,9 +335,52 @@ describeBrowserLayout("chat responsive browser layout", () => {
       expect(Math.max(...rowY) - Math.min(...rowY)).toBeLessThanOrEqual(4);
       const agent = expectControlRect(controls.agent, "agent");
       const session = expectControlRect(controls.session, "session");
+      const model = expectControlRect(controls.model, "model");
+      const thinking = expectControlRect(controls.thinking, "thinking");
       expect(agent.x).toBeLessThan(session.x);
-      expect(session.width / agent.width).toBeGreaterThan(1.25);
-      expect(session.width / agent.width).toBeLessThan(1.55);
+      expect(session.x).toBeLessThan(model.x);
+      expect(model.x).toBeLessThan(thinking.x);
+    } finally {
+      await page.close();
+    }
+  });
+
+  it("sizes desktop header selects close to their selected option label", async () => {
+    const page = await openHeaderFixture(1366, 900);
+    try {
+      await expectNoHorizontalOverflow(page);
+      const controls = await page.evaluate(() => {
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        const rectFor = (selector: string) => {
+          const node = document.querySelector(selector) as HTMLSelectElement | null;
+          if (!node || !context) {
+            return null;
+          }
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          const label = node.options[node.selectedIndex]?.textContent?.trim() ?? "";
+          context.font = style.font;
+          return {
+            width: rect.width,
+            textWidth: context.measureText(label).width,
+          };
+        };
+        return [
+          rectFor('[data-chat-agent-filter="true"]'),
+          rectFor('[data-chat-session-select="true"]'),
+          rectFor('[data-chat-model-select="true"]'),
+          rectFor('[data-chat-thinking-select="true"]'),
+        ];
+      });
+      for (const control of controls) {
+        const rect = expectControlRect(
+          control && { x: 0, y: 0, height: 36, width: control.width },
+          "header select",
+        );
+        expect(rect.width).toBeGreaterThanOrEqual((control?.textWidth ?? 0) + 36);
+        expect(rect.width - (control?.textWidth ?? 0)).toBeLessThanOrEqual(72);
+      }
     } finally {
       await page.close();
     }

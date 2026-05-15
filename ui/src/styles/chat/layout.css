@@ -1192,28 +1192,33 @@
 .chat-controls__session {
   min-width: 0;
   max-width: none;
+  width: fit-content;
+  justify-self: start;
 }
 
 .chat-controls__agent {
   min-width: 0;
   max-width: none;
+  width: fit-content;
+  justify-self: start;
 }
 
 .chat-controls__session-row {
   display: grid;
   grid-template-columns:
-    minmax(116px, 5fr) minmax(132px, 7fr) minmax(132px, 5fr)
-    minmax(128px, 4fr);
+    minmax(0, max-content) minmax(0, max-content) minmax(0, max-content)
+    minmax(0, max-content);
   grid-template-areas: "agent session model thinking";
   align-items: center;
   gap: 6px;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   min-height: 36px;
   min-width: 0;
 }
 
 .chat-controls__session-row--single-agent {
-  grid-template-columns: minmax(132px, 7fr) minmax(132px, 5fr) minmax(128px, 4fr);
+  grid-template-columns: repeat(3, minmax(0, max-content));
   grid-template-areas: "session model thinking";
 }
 
@@ -1262,12 +1267,16 @@
   grid-area: model;
   min-width: 0;
   max-width: none;
+  width: fit-content;
+  justify-self: start;
 }
 
 .chat-controls__thinking-select {
   grid-area: thinking;
   min-width: 0;
   max-width: none;
+  width: fit-content;
+  justify-self: start;
 }
 
 .chat-controls__thinking {
@@ -1311,8 +1320,9 @@
   height: 36px;
   min-height: 36px;
   padding: 0 34px 0 12px;
-  width: 100%;
-  max-width: none;
+  width: fit-content;
+  max-width: 100%;
+  field-sizing: content;
   border-color: color-mix(in srgb, var(--input) 88%, transparent);
   border-radius: var(--radius-lg);
   background-color: color-mix(in srgb, var(--card) 92%, var(--bg-elevated) 8%);
