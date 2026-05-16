@@ -1126,6 +1126,9 @@ function promptOnlyReasonsForDirectShellPositionalCarrierStep(params: {
       !riskWithinShellInlinePayload(params.step, params.inlineCommand, risk),
   );
   const reasons = promptOnlyReasonsFromRisks(outerRisks);
+  if (detectInlineEvalArgv(params.step.argv)) {
+    reasons.push("interpreter-inline-eval");
+  }
   if (outerRisks.some((risk) => risk.kind === "dynamic-argument")) {
     reasons.push("unsupported-shell-syntax");
   }

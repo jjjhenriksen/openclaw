@@ -628,6 +628,27 @@ describe("command authorization planner corpus", () => {
     },
   );
 
+  it("keeps interpreter inline eval prompt-only through shell positional carriers", async () => {
+    const plan = await planCommandForAuthorization({
+      dialect: "posix-shell",
+      command: `sh -c '$0 "$@"' python -c 'print(1)'`,
+    });
+
+    expect(plan.kind).toBe("prompt-only");
+    if (plan.kind !== "prompt-only") {
+      throw new Error(`expected prompt-only plan, got ${plan.kind}`);
+    }
+    expect(plan.promptOnlyReasons).toContain("interpreter-inline-eval");
+    expect(plan.units).toEqual([
+      expect.objectContaining({
+        argv: ["sh", "-c", '$0 "$@"', "python", "-c", "print(1)"],
+        allowlistEligible: false,
+        allowAlwaysEligible: false,
+        promptOnlyReasons: ["interpreter-inline-eval"],
+      }),
+    ]);
+  });
+
   it("keeps surrounding POSIX chain commands when planning shell wrapper payloads", async () => {
     const plan = await planCommandForAuthorization({
       dialect: "posix-shell",

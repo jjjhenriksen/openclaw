@@ -820,6 +820,43 @@ describe("resolveAllowAlwaysPatterns", () => {
     });
   });
 
+  it("does not allowlist or persist positional carrier inline eval", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = makeTempDir();
+    const python = makeExecutable(dir, "python");
+    const env = makePathEnv(dir);
+    const safeBins = resolveSafeBins(undefined);
+    const command = `sh -c '$0 "$@"' python -c 'print(1)'`;
+
+    const { analysis, persisted } = await resolvePersistedPatterns({
+      command,
+      dir,
+      env,
+      safeBins,
+    });
+    expect(analysis.analysisOk).toBe(true);
+    const plan = analysis.authorizationPlan;
+    expect(plan?.kind).toBe("prompt-only");
+    if (!plan || plan.kind !== "prompt-only") {
+      throw new Error(`expected prompt-only plan, got ${plan?.kind ?? "missing"}`);
+    }
+    expect(plan.units[0]?.promptOnlyReasons).toEqual(["interpreter-inline-eval"]);
+    expect(persisted).toStrictEqual([]);
+
+    const second = await evaluateShellAllowlist({
+      command,
+      allowlist: [{ pattern: python, source: "allow-always" }],
+      safeBins,
+      cwd: dir,
+      env,
+      platform: process.platform,
+    });
+    expect(second.allowlistSatisfied).toBe(false);
+    expect(second.segmentAllowlistEntries).toEqual([null]);
+  });
+
   it("rejects positional argv carriers when $0 is single-quoted", async () => {
     if (process.platform === "win32") {
       return;
@@ -1345,7 +1382,7 @@ $0 \\"$1\\"" touch {marker}`,
     }
   });
 
-  it("allows positional carriers for unknown carried executables when explicitly allowlisted", async () => {
+  it("rejects positional carriers for inline-eval executables even when explicitly allowlisted", async () => {
     if (process.platform === "win32") {
       return;
     }
@@ -1372,6 +1409,6 @@ $0 \\"$1\\"" touch {marker}`,
       env,
       platform: process.platform,
     });
-    expect(second.allowlistSatisfied).toBe(true);
+    expect(second.allowlistSatisfied).toBe(false);
   });
 });
