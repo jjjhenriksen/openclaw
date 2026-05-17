@@ -198,8 +198,8 @@ async function seedClaudeCliReusedSessionProof(params: {
       2,
     )}\n`,
   );
-
-  const claudeProjectDir = path.join(os.homedir(), ".claude", "projects", "openclaw-live-proof");
+  const homeDir = process.env.HOME?.trim() || os.homedir();
+  const claudeProjectDir = path.join(homeDir, ".claude", "projects", "openclaw-live-proof");
   await fs.mkdir(claudeProjectDir, { recursive: true });
   await fs.writeFile(
     path.join(claudeProjectDir, `${cliSessionId}.jsonl`),
