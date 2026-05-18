@@ -146,6 +146,7 @@ describe("WhatsApp QA live runtime", () => {
       },
     );
     expect(cfg.agents?.defaults?.skipBootstrap).toBe(true);
+    expect(cfg.agents?.defaults?.thinkingDefault).toBe("off");
     expect(cfg.messages?.groupChat?.visibleReplies).toBe("automatic");
     expect(cfg.messages?.groupChat?.mentionPatterns).toContain("\\bopenclawqa\\b");
   });
