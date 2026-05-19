@@ -29,6 +29,7 @@ describe("embedded attempt session lock — stuck auto-compaction (#84193)", () 
     const controller = await createEmbeddedAttemptSessionLockController({
       acquireSessionWriteLock,
       lockOptions,
+      logAbandonDiagnostic: () => {},
     });
 
     await controller.releaseForPrompt();
@@ -75,6 +76,7 @@ describe("embedded attempt session lock — stuck auto-compaction (#84193)", () 
     const controller = await createEmbeddedAttemptSessionLockController({
       acquireSessionWriteLock,
       lockOptions,
+      logAbandonDiagnostic: () => {},
     });
     await controller.releaseForPrompt();
 
