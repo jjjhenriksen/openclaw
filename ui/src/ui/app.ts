@@ -32,6 +32,7 @@ import {
 } from "./app-defaults.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import { connectGateway as connectGatewayInternal } from "./app-gateway.ts";
+import { resolveDashboardShortcutAction } from "./app-keyboard-shortcuts.ts";
 import {
   handleConnected,
   handleDisconnected,
@@ -613,13 +614,36 @@ export class OpenClawApp extends LitElement {
     onPopStateInternal(this as unknown as Parameters<typeof onPopStateInternal>[0]);
   topbarObserver: ResizeObserver | null = null;
   private globalKeydownHandler = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "k") {
-      e.preventDefault();
-      this.paletteOpen = !this.paletteOpen;
-      if (this.paletteOpen) {
-        this.paletteQuery = "";
-        this.paletteActiveIndex = 0;
-      }
+    const action = resolveDashboardShortcutAction(e, {
+      tab: this.tab,
+      paletteOpen: this.paletteOpen,
+      chatNewMessagesBelow: this.chatNewMessagesBelow,
+      chatManualRefreshInFlight: this.chatManualRefreshInFlight,
+      chatMobileControlsOpen: this.chatMobileControlsOpen,
+      navDrawerOpen: this.navDrawerOpen,
+      sessionSwitchNoticeActive: Boolean(this.sessionSwitchNotice),
+      sidebarOpen: this.sidebarOpen,
+      chatFocusMode: this.settings.chatFocusMode,
+      onboarding: this.onboarding,
+    });
+    if (!action) {
+      return;
+    }
+
+    e.preventDefault();
+    switch (action) {
+      case "toggle-palette":
+        this.toggleCommandPalette();
+        break;
+      case "focus-composer":
+        this.focusChatComposer();
+        break;
+      case "scroll-new-messages":
+        this.scrollToBottom();
+        break;
+      case "dismiss-transient":
+        this.dismissDashboardTransient();
+        break;
     }
   };
   private chatMobileControlsKeydownHandler = (e: KeyboardEvent) => {
@@ -805,6 +829,66 @@ export class OpenClawApp extends LitElement {
         focusTarget.focus();
       }
     });
+  }
+
+  private toggleCommandPalette() {
+    this.paletteOpen = !this.paletteOpen;
+    if (this.paletteOpen) {
+      this.paletteQuery = "";
+      this.paletteActiveIndex = 0;
+    }
+  }
+
+  private focusChatComposer() {
+    if (this.tab !== "chat") {
+      this.setTab("chat");
+    }
+    void this.updateComplete.then(() => {
+      requestAnimationFrame(() => {
+        this.querySelector<HTMLTextAreaElement>(".agent-chat__composer-combobox textarea")?.focus();
+      });
+    });
+  }
+
+  private clearSessionSwitchNotice() {
+    if (this.sessionSwitchNoticeTimer !== null) {
+      window.clearTimeout(this.sessionSwitchNoticeTimer);
+      this.sessionSwitchNoticeTimer = null;
+    }
+    if (this.sessionSwitchFlashTimer !== null) {
+      window.clearTimeout(this.sessionSwitchFlashTimer);
+      this.sessionSwitchFlashTimer = null;
+    }
+    this.sessionSwitchNotice = null;
+    this.sessionSwitchFlashKey = null;
+  }
+
+  private dismissDashboardTransient() {
+    if (this.paletteOpen) {
+      this.paletteOpen = false;
+      this.paletteQuery = "";
+      this.paletteActiveIndex = 0;
+      return;
+    }
+    if (this.chatMobileControlsOpen) {
+      this.setChatMobileControlsOpen(false, { restoreFocus: true });
+      return;
+    }
+    if (this.navDrawerOpen) {
+      this.navDrawerOpen = false;
+      return;
+    }
+    if (this.sessionSwitchNotice) {
+      this.clearSessionSwitchNotice();
+      return;
+    }
+    if (this.sidebarOpen) {
+      this.handleCloseSidebar();
+      return;
+    }
+    if (this.tab === "chat" && this.settings.chatFocusMode && !this.onboarding) {
+      this.applySettings({ ...this.settings, chatFocusMode: false });
+    }
   }
 
   setTheme(next: ThemeName, context?: Parameters<typeof setThemeInternal>[2]) {

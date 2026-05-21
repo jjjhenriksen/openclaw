@@ -762,6 +762,15 @@ function renderSearchBar(requestUpdate: () => void): TemplateResult | typeof not
           vs.searchQuery = (e.target as HTMLInputElement).value;
           requestUpdate();
         }}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key !== "Escape") {
+            return;
+          }
+          e.preventDefault();
+          vs.searchOpen = false;
+          vs.searchQuery = "";
+          requestUpdate();
+        }}
       />
       <button
         class="btn btn--ghost"
@@ -1421,8 +1430,14 @@ export function renderChat(props: ChatProps) {
       })}
       ${props.showNewMessages
         ? html`
-            <button class="chat-new-messages" type="button" @click=${props.onScrollToBottom}>
-              ${icons.arrowDown} New messages
+            <button
+              class="chat-new-messages"
+              type="button"
+              @click=${props.onScrollToBottom}
+              aria-label="New messages, press N"
+              title="New messages (N)"
+            >
+              ${icons.arrowDown} <span>New messages</span><kbd>N</kbd>
             </button>
           `
         : nothing}
