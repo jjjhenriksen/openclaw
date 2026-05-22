@@ -1837,7 +1837,11 @@ export function renderApp(state: AppViewState) {
           </div>
         </aside>
       </div>
-      <main class="content ${isChat ? "content--chat" : ""}">
+      <main
+        class="content ${isChat ? "content--chat" : ""} ${state.tab === "workboard"
+          ? "content--workboard"
+          : ""}"
+      >
         ${state.updateStatusBanner
           ? html`<div class="callout ${state.updateStatusBanner.tone}" role="alert">
               ${state.updateStatusBanner.text}
