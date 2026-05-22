@@ -19,6 +19,7 @@ import {
   finalizeHarnessContextEngineTurn,
   formatPrePromptPrecheckLog,
   formatErrorMessage,
+  hasSqliteSessionTranscriptEvents,
   hasBeforeToolCallPolicy,
   isActiveHarnessContextEngine,
   isSubagentSessionKey,
@@ -60,7 +61,6 @@ import {
   type DiagnosticEventPayload,
 } from "openclaw/plugin-sdk/diagnostic-runtime";
 import { isToolAllowed } from "openclaw/plugin-sdk/sandbox";
-import { pathExists } from "openclaw/plugin-sdk/security-runtime";
 import { defaultCodexAppInventoryCache } from "./app-inventory-cache.js";
 import { handleCodexAppServerApprovalRequest } from "./approval-bridge.js";
 import {
@@ -168,7 +168,10 @@ import {
   readCodexAppServerBinding,
   type CodexAppServerThreadBinding,
 } from "./session-binding.js";
-import { readCodexMirroredSessionHistoryMessages } from "./session-history.js";
+import {
+  readCodexMirroredSessionHistoryMessages,
+  type CodexMirroredSessionHistoryScope,
+} from "./session-history.js";
 import { clearSharedCodexAppServerClientIfCurrent } from "./shared-client.js";
 import {
   areCodexDynamicToolFingerprintsCompatible,
@@ -302,11 +305,15 @@ function hasCodexAppServerPotentialSideEffectEvidence(result: EmbeddedRunAttempt
   return result.replayMetadata.hadPotentialSideEffects;
 }
 
+type CodexAppServerReplayBlockedReason =
+  | "potential_side_effect"
+  | "assistant_output"
+  | "tool_activity"
+  | "active_item";
+
 function resolveCodexAppServerReplayBlockedReason(
   result: EmbeddedRunAttemptResult,
-):
-  | NonNullable<EmbeddedRunAttemptResult["codexAppServerFailure"]>["replayBlockedReason"]
-  | undefined {
+): CodexAppServerReplayBlockedReason | undefined {
   if (result.replayMetadata.hadPotentialSideEffects) {
     return "potential_side_effect";
   }
@@ -869,7 +876,6 @@ export async function runCodexAppServerAttempt(
   startupBinding = await rotateOversizedCodexAppServerStartupBinding({
     binding: startupBinding,
     bindingIdentity: startupBindingIdentity,
-    sessionFile: params.sessionFile,
     agentDir,
     codexHome: appServer.start.env?.CODEX_HOME,
     config: params.config,
@@ -898,6 +904,10 @@ export async function runCodexAppServerAttempt(
   let activeSessionId = params.sessionId;
   const buildActiveRunAttemptParams = (): EmbeddedRunAttemptParams => ({
     ...runtimeParams,
+    sessionId: activeSessionId,
+  });
+  const activeTranscriptScope = (): CodexMirroredSessionHistoryScope => ({
+    agentId: sessionAgentId,
     sessionId: activeSessionId,
   });
   const adoptContextEngineCompactionTranscript = (compactResult: {
@@ -3141,7 +3151,7 @@ export async function runCodexAppServerAttempt(
     if (activeContextEngine) {
       const activeContextEnginePluginId = resolveContextEngineOwnerPluginId(activeContextEngine);
       const finalMessages =
-        (await readMirroredSessionHistoryMessages(activeSessionFile)) ??
+        (await readMirroredSessionHistoryMessages(activeTranscriptScope())) ??
         historyMessages.concat(result.messagesSnapshot);
       await finalizeHarnessContextEngineTurn({
         contextEngine: activeContextEngine,
@@ -3150,7 +3160,7 @@ export async function runCodexAppServerAttempt(
         yieldAborted: Boolean(result.yieldDetected),
         sessionIdUsed: activeSessionId,
         sessionKey: contextSessionKey,
-        sessionFile: activeSessionFile,
+        transcriptScope: activeTranscriptScope(),
         messagesSnapshot: finalMessages,
         prePromptMessageCount,
         tokenBudget: params.contextTokenBudget,
@@ -4973,12 +4983,13 @@ function readBoolean(record: JsonObject, key: string): boolean | undefined {
 }
 
 async function readMirroredSessionHistoryMessages(
-  sessionFile: string,
+  scope: CodexMirroredSessionHistoryScope,
 ): Promise<AgentMessage[] | undefined> {
-  const messages = await readCodexMirroredSessionHistoryMessages(sessionFile);
+  const messages = await readCodexMirroredSessionHistoryMessages(scope);
   if (!messages) {
     embeddedAgentLog.warn("failed to read mirrored session history for codex harness hooks", {
-      sessionFile,
+      agentId: scope.agentId,
+      sessionId: scope.sessionId,
     });
   }
   return messages;
@@ -5425,7 +5436,7 @@ function getCodexContextFileBasename(filePath: string): string {
 
 async function mirrorTranscriptBestEffort(params: {
   params: EmbeddedRunAttemptParams;
-  agentId?: string;
+  agentId: string;
   result: EmbeddedRunAttemptResult;
   sessionKey?: string;
   threadId: string;
@@ -5433,8 +5444,8 @@ async function mirrorTranscriptBestEffort(params: {
 }): Promise<void> {
   try {
     await mirrorCodexAppServerTranscript({
-      sessionFile: params.params.sessionFile,
       agentId: params.agentId,
+      sessionId: params.result.sessionIdUsed || params.params.sessionId,
       sessionKey: params.sessionKey,
       messages: params.result.messagesSnapshot,
       // Scope is thread-stable. Each entry in `messagesSnapshot` is tagged
@@ -5568,6 +5579,7 @@ export const testing = {
   resolveDynamicToolCallTimeoutMs,
   resolveCodexDynamicToolsLoading,
   rotateOversizedCodexAppServerStartupBinding,
+  resolveCodexExternalSandboxPolicyForOpenClawSandbox,
   resolveCodexAppServerForOpenClawToolPolicy,
   resolveOpenClawCodingToolsSessionKeys,
   shouldProjectMirroredHistoryForCodexStart,
