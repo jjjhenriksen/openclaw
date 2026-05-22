@@ -128,6 +128,7 @@ import {
   updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
+import { captureSessionToWorkboard, getWorkboardState } from "./controllers/workboard.ts";
 import { getCronJobPayload } from "./cron-payload.ts";
 import { buildExternalLinkRel, EXTERNAL_LINK_TARGET } from "./external-link.ts";
 import { formatRelativeTimestamp } from "./format.ts";
@@ -1972,8 +1973,16 @@ export function renderApp(state: AppViewState) {
             )
           : nothing}
         ${state.tab === "sessions"
-          ? renderLazyView(lazySessions, (m) =>
-              m.renderSessions({
+          ? renderLazyView(lazySessions, (m) => {
+              const workboardState = getWorkboardState(state);
+              const workboardEnabled = isPluginEnabledInConfigSnapshot(
+                state.configSnapshot,
+                "workboard",
+                {
+                  enabledByDefault: false,
+                },
+              );
+              return m.renderSessions({
                 loading: state.sessionsLoading,
                 result: state.sessionsResult,
                 error: state.sessionsError,
@@ -1991,6 +2000,12 @@ export function renderApp(state: AppViewState) {
                 page: state.sessionsPage,
                 pageSize: state.sessionsPageSize,
                 selectedKeys: state.sessionsSelectedKeys,
+                workboardSessionKeys: new Set(
+                  workboardState.cards
+                    .map((card) => card.sessionKey)
+                    .filter((key): key is string => typeof key === "string" && key.length > 0),
+                ),
+                workboardBusySessionKey: [...workboardState.capturingSessionKeys][0] ?? null,
                 expandedCheckpointKey: state.sessionsExpandedCheckpointKey,
                 checkpointItemsByKey: state.sessionsCheckpointItemsByKey,
                 checkpointLoadingKey: state.sessionsCheckpointLoadingKey,
@@ -2091,6 +2106,17 @@ export function renderApp(state: AppViewState) {
                   switchChatSession(state, sessionKey);
                   state.setTab("chat" as import("./navigation.ts").Tab);
                 },
+                onAddToWorkboard: workboardEnabled
+                  ? async (session) => {
+                      await captureSessionToWorkboard({
+                        host: state,
+                        client: state.client,
+                        session,
+                        requestUpdate: requestHostUpdate,
+                      });
+                      state.setTab("workboard" as import("./navigation.ts").Tab);
+                    }
+                  : undefined,
                 onToggleCheckpointDetails: (sessionKey) =>
                   toggleSessionCompactionCheckpoints(state, sessionKey),
                 onBranchFromCheckpoint: async (sessionKey, checkpointId) => {
@@ -2106,8 +2132,8 @@ export function renderApp(state: AppViewState) {
                 },
                 onRestoreCheckpoint: (sessionKey, checkpointId) =>
                   restoreSessionFromCheckpoint(state, sessionKey, checkpointId),
-              }),
-            )
+              });
+            })
           : nothing}
         ${state.tab === "workboard"
           ? renderLazyView(lazyWorkboard, (m) =>

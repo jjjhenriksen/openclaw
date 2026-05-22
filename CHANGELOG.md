@@ -12,6 +12,7 @@ Docs: https://docs.openclaw.ai
 - Agents/subagents: limit default sub-agent bootstrap context to `AGENTS.md` and `TOOLS.md`, keeping persona, identity, user, memory, heartbeat, and setup files out of delegated workers by default. (#85283) Thanks @100yenadmin.
 - Control UI: add a Workboard dashboard tab backed by a bundled plugin for Kanban-style agent work cards and session handoff.
 - Control UI: sync Workboard cards with linked session lifecycle state, including active, completed, and failed runs.
+- Control UI: let Sessions rows capture existing dashboard sessions into Workboard cards with seeded notes and lifecycle-derived status.
 - Maintainer skills: exclude plugin SDK/API boundary work from `openclaw-landable-bug-sweep` so bugbash sweeps stay focused on small paper-cut fixes.
 - Plugin SDK: add a generic channel-message poll sender so channel plugins can expose poll delivery without depending on channel-specific SDK facades.
 - Crabbox: keep the local wrapper's provider validation synced with the installed Crabbox binary while preserving supported aliases such as `docker` and `blacksmith`. (#85302) Thanks @hxy91819.
