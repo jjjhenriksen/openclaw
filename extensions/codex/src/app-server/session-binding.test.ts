@@ -76,6 +76,18 @@ describe("codex app-server session binding", () => {
     expect(bindingStat.isFile()).toBe(true);
   });
 
+  it("creates the binding sidecar directory before writing", async () => {
+    const sessionFile = path.join(tempDir, "missing", "session.json");
+
+    await writeCodexAppServerBinding(sessionFile, {
+      threadId: "thread-123",
+      cwd: tempDir,
+    });
+
+    const bindingStat = await fs.stat(resolveCodexAppServerBindingPath(sessionFile));
+    expect(bindingStat.isFile()).toBe(true);
+  });
+
   it("round-trips plugin app policy context with app ids as record keys", async () => {
     const sessionFile = path.join(tempDir, "session.json");
     const pluginAppPolicyContext = {
