@@ -69,6 +69,7 @@ import {
   testing,
 } from "./run-attempt.js";
 import {
+  closeCodexSandboxExecServersForTests,
   ensureCodexSandboxExecServerEnvironment,
   releaseCodexSandboxExecServerEnvironment,
 } from "./sandbox-exec-server.js";
@@ -703,6 +704,7 @@ describe("runCodexAppServerAttempt", () => {
   });
 
   afterEach(async () => {
+    await closeCodexSandboxExecServersForTests();
     resetCodexAppServerClientFactoryForTest();
     testing.resetOpenClawCodingToolsFactoryForTests();
     resetCodexRateLimitCacheForTests();
