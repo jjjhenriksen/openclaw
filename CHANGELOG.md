@@ -49,6 +49,7 @@ Docs: https://docs.openclaw.ai
 
 ### Fixes
 
+- Backup/doctor: treat missing configured plugin load paths as warnings so stale local plugin installs do not block backup planning or state import.
 - Agents/tools: honor configured custom provider API keys when deciding whether media, image-generation, video-generation, music-generation, and PDF tools are available. (#85570)
 - StepFun: stop advertising stale generic API key auth choices so onboarding only offers runtime-backed Standard and Step Plan choices.
 - Diagnostics: keep OpenTelemetry log bodies behind explicit content capture and scrub scoped agent-session keys from OpenTelemetry and Prometheus labels while preserving bounded queue-lane prefixes.
