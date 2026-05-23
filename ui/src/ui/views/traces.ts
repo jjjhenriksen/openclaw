@@ -1,6 +1,5 @@
 import { html, nothing } from "lit";
 import type { LlmTraceDetail, LlmTraceSummary, TraceCapability } from "../controllers/traces.ts";
-import { icons } from "../icons.ts";
 import { normalizeLowercaseStringOrEmpty } from "../string-coerce.ts";
 
 export type TracesProps = {
@@ -583,7 +582,7 @@ function renderTraceDetail(trace: LlmTraceDetail | null, capability: TraceCapabi
           <summary class="traces-section-title">
             <span>Prompt messages</span>
             <span class="trace-section-meta">${formatCount(trace.inputItemCount, "input")}</span>
-            <span class="trace-section-chevron" aria-hidden="true">${icons.chevronDown}</span>
+            <span class="trace-section-toggle" aria-hidden="true"></span>
           </summary>
           ${renderMessages(trace)}
         </details>

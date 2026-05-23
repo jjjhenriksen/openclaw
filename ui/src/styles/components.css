@@ -6796,28 +6796,39 @@ details[open] > .ov-expandable-toggle::after {
   text-transform: none;
 }
 
-.trace-section-chevron {
+.trace-section-toggle {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
   color: var(--muted);
   display: inline-flex;
   flex: 0 0 auto;
   height: 16px;
-  transform: rotate(-90deg);
-  transition: transform 0.15s ease;
+  justify-content: center;
+  position: relative;
   width: 16px;
 }
 
-.trace-section-chevron svg {
-  fill: none;
-  height: 16px;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.2;
-  width: 16px;
+.trace-section-toggle::before,
+.trace-section-toggle::after {
+  background: currentColor;
+  border-radius: 1px;
+  content: "";
+  height: 1.5px;
+  position: absolute;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  width: 7px;
 }
 
-.trace-collapsible-panel[open] .trace-section-chevron {
-  transform: rotate(0deg);
+.trace-section-toggle::after {
+  transform: rotate(90deg);
+}
+
+.trace-collapsible-panel[open] .trace-section-toggle::after {
+  opacity: 0;
+  transform: rotate(90deg) scaleX(0.4);
 }
 
 .traces-section-title {
