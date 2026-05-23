@@ -6610,8 +6610,8 @@ details[open] > .ov-expandable-toggle::after {
 /* Development traces */
 .traces-layout {
   display: grid;
-  grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.4fr);
-  gap: 14px;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 12px;
   margin-top: 14px;
 }
 
@@ -6626,18 +6626,16 @@ details[open] > .ov-expandable-toggle::after {
 }
 
 .traces-row {
-  align-items: center;
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 84px minmax(0, 1fr) 62px 56px 62px;
-  min-height: 52px;
-  padding: 9px 10px;
+  display: block;
+  min-height: 68px;
+  padding: 10px;
   text-align: left;
+  width: 100%;
 }
 
 .traces-row:hover,
@@ -6649,10 +6647,10 @@ details[open] > .ov-expandable-toggle::after {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   display: inline-flex;
-  font-size: 12px;
+  font-size: 10px;
   justify-content: center;
   line-height: 1;
-  padding: 6px 8px;
+  padding: 5px 6px;
   text-transform: uppercase;
 }
 
@@ -6673,13 +6671,29 @@ details[open] > .ov-expandable-toggle::after {
 
 .trace-main {
   display: grid;
+  gap: 5px;
   min-width: 0;
 }
 
+.trace-row-top,
+.trace-row-facts {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.trace-row-top {
+  justify-content: space-between;
+}
+
+.trace-row-facts {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .trace-name,
-.trace-meta,
-.trace-metric,
-.trace-time {
+.trace-meta {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6687,24 +6701,19 @@ details[open] > .ov-expandable-toggle::after {
 }
 
 .trace-name {
+  color: var(--text-strong);
   font-weight: 650;
 }
 
-.trace-meta,
-.trace-metric,
-.trace-time {
+.trace-meta {
   color: var(--muted);
   font-size: 12px;
-}
-
-.trace-time {
-  display: none;
 }
 
 .traces-detail {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 14px;
+  padding: 16px;
 }
 
 .traces-detail-empty {
@@ -6720,32 +6729,41 @@ details[open] > .ov-expandable-toggle::after {
   justify-content: space-between;
 }
 
-.traces-summary-grid {
-  display: grid;
+.traces-detail-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 12px;
 }
 
-.traces-summary-grid > div {
+.traces-detail-meta > span {
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  display: grid;
-  gap: 4px;
-  padding: 10px;
+  padding: 5px 8px;
 }
 
-.traces-summary-grid span {
-  color: var(--muted);
-  font-size: 12px;
+.traces-detail-meta strong {
+  color: var(--text);
+  font-weight: 650;
 }
 
-.traces-payload-grid {
+.traces-detail-content {
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 12px;
+  margin-top: 16px;
+}
+
+.trace-panel {
+  min-width: 0;
+}
+
+.trace-panel-primary {
+  grid-column: 1 / -1;
 }
 
 .traces-section-title {
@@ -6754,6 +6772,134 @@ details[open] > .ov-expandable-toggle::after {
   font-weight: 650;
   margin-bottom: 6px;
   text-transform: uppercase;
+}
+
+.trace-message-list,
+.trace-tool-list {
+  display: grid;
+  gap: 10px;
+}
+
+.trace-message,
+.trace-tool,
+.trace-param-list,
+.trace-message-content.response {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.trace-message-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 8px 10px;
+  text-transform: uppercase;
+}
+
+.trace-message-content {
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.trace-tool {
+  padding: 0;
+}
+
+.trace-tool > summary,
+.trace-raw-disclosure > summary {
+  cursor: pointer;
+}
+
+.trace-tool > summary {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.trace-tool-name {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trace-tool-args {
+  border-top: 1px solid var(--border);
+  display: grid;
+}
+
+.trace-tool-arg {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(86px, 0.6fr) minmax(0, 1.6fr);
+  padding: 9px 12px;
+}
+
+.trace-tool-arg + .trace-tool-arg {
+  border-top: 1px solid var(--border);
+}
+
+.trace-tool-arg span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trace-tool-arg span:nth-child(2),
+.trace-tool-arg span:nth-child(3) {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trace-param-list {
+  display: grid;
+}
+
+.trace-param {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr);
+  padding: 9px 10px;
+}
+
+.trace-param + .trace-param {
+  border-top: 1px solid var(--border);
+}
+
+.trace-param > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trace-param code {
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.trace-raw-disclosure {
+  margin-top: 8px;
+}
+
+.trace-raw-disclosure > summary {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 2px 6px;
 }
 
 .traces-json {
@@ -6767,18 +6913,25 @@ details[open] > .ov-expandable-toggle::after {
   white-space: pre;
 }
 
+.traces-json.compact {
+  max-height: 260px;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 1100px) {
   .traces-layout,
-  .traces-payload-grid {
+  .traces-detail-content {
     grid-template-columns: 1fr;
   }
 
-  .traces-row {
-    grid-template-columns: 84px minmax(0, 1fr) 74px;
+  .trace-panel-primary {
+    grid-column: auto;
   }
+}
 
-  .trace-metric:nth-of-type(n + 2),
-  .trace-time {
-    display: none;
+@media (max-width: 720px) {
+  .trace-tool-arg,
+  .trace-param {
+    grid-template-columns: 1fr;
   }
 }

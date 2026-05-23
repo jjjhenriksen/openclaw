@@ -61,9 +61,10 @@ describeControlUiE2e("Control UI traces mocked Gateway E2E", () => {
       reasoning: { effort: "medium" },
       tools: [
         {
+          description: "Run a shell command",
           name: "shell_exec",
           parameters: {
-            properties: { cmd: { type: "string" } },
+            properties: { cmd: { description: "Command to execute", type: "string" } },
             required: ["cmd"],
             type: "object",
           },
@@ -92,7 +93,11 @@ describeControlUiE2e("Control UI traces mocked Gateway E2E", () => {
           trace: {
             ...traceSummary,
             requestPayload,
-            responseChunks: [{ delta: "done", type: "response.output_text.delta" }],
+            responseChunks: [
+              { delta: "hidden reasoning", type: "thinking_delta" },
+              { delta: '{"cmd":"hidden"}', type: "toolcall_delta" },
+              { delta: "done", type: "response.output_text.delta" },
+            ],
           },
         },
         "traces.list": { traces: [traceSummary] },
@@ -109,11 +114,24 @@ describeControlUiE2e("Control UI traces mocked Gateway E2E", () => {
       await page
         .locator(".traces-detail .card-title", { hasText: "openai/gpt-5.5" })
         .waitFor({ timeout: 10_000 });
+
+      const rowText = await page.locator('[data-traces-row="run-trace:model:1"]').textContent();
+      expect(rowText).toContain("openai/gpt-5.5");
+      expect(rowText).toContain("312 ms");
+      expect(rowText).toContain("1 tools");
+      expect(rowText).not.toContain("2.0 KB");
+
       const promptText = await page.locator("[data-traces-request-payload]").textContent();
       const toolsText = await page.locator("[data-traces-tools]").textContent();
+      const responseText = await page.locator(".trace-message-content.response").textContent();
       expect(promptText).toContain("full prompt text visible in trace");
+      expect(promptText).toContain("user");
       expect(toolsText).toContain("shell_exec");
-      expect(toolsText).toContain('"required": [');
+      expect(toolsText).toContain("cmd");
+      expect(toolsText).toContain("string, required");
+      expect(responseText).toContain("done");
+      expect(responseText).not.toContain("hidden reasoning");
+      expect(responseText).not.toContain('{"cmd":"hidden"}');
     } finally {
       await context.close();
     }
