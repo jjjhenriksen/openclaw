@@ -1,18 +1,36 @@
-# Current-head ClickClack native progress proof
+# Exact-current-head ClickClack native progress proof
 
-- Behavior-bearing OpenClaw head: `fe7bd4eb3a`
-- Final PR head: `023a297430e03b5a10a12c7b13cf9c90c09becf2` (rebased onto upstream `origin/main` at `e051a7bb4a` on 2026-07-31; the intervening upstream commits do not touch ClickClack)
+- OpenClaw PR: [#116683](https://github.com/openclaw/openclaw/pull/116683)
+- Behavior-bearing OpenClaw head: `63156dee3777d58317feff587ef25eec04ab0709`
 - ClickClack server: local dev server at `127.0.0.1:18082`
 - Surface: `ClickClack PR Testing / #PR tests`
 - Endpoint: `POST /api/realtime/ephemeral`
-- Scope: a newly created local proof bot with `messages:write`; no credential is included here
+- Scope: a newly created local proof bot with `messages:read,messages:write`; no credential is included here
+
+The run imported the `progress.ts` and `http-client.ts` modules from the exact PR head, used the real ClickClack REST endpoint, and opened the real ClickClack browser surface. The proof bot token was scoped to this workspace and is not included in the artifact.
 
 ## Observed request results
 
-The live run sent ordered `agent.progress` frames for one turn:
+The live run sent ordered `agent.progress` frames for turn `proof-63156dee`:
 
 1. `seq=1`, `op=append`, native `Agent is responding` line: HTTP `202`
-2. `seq=2`, `op=append`, tool line `Current-head native progress`: HTTP `202`
+2. `seq=2`, `op=append`, tool line `Exact-current-head native progress`: HTTP `202`
 3. `seq=3`, `op=clear`: HTTP `202`
 
-The attached screenshot was captured between frames 2 and 3. The ClickClack UI visibly rendered both the native response row and the tool progress row. After frame 3, the yellow native progress row was gone; the clear request completed with `cleanup=complete`.
+The browser contained one matching progress line while the turn was active and zero after `finalize()` completed. The attached screenshot was captured while both native progress rows were visible.
+
+## Final delivery
+
+After cleanup, the same current-head ClickClack client sent:
+
+```text
+Exact-current-head final reply 63156dee
+```
+
+- final message ID: `msg_01kywdfgb28b95g3b0agj7e6ff`
+- browser-visible final text: confirmed
+- API channel listing: persisted: confirmed
+- API message read-back: confirmed
+- browser console errors/warnings: none
+
+The final message remained visible after the progress clear, demonstrating that transient progress cleanup did not suppress final delivery.
