@@ -11,6 +11,10 @@ import { createClickClackActivityPublisher, type ClickClackActivityPublisher } f
 import { resolveClickClackDiscussionRoute } from "./discussions/routing.js";
 import { createClickClackClient } from "./http-client.js";
 import { sendClickClackText } from "./outbound.js";
+import {
+  createClickClackAgentProgressPublisher,
+  type ClickClackItemEventPayload,
+} from "./progress.js";
 import { getClickClackRuntime } from "./runtime.js";
 import { buildClickClackTarget } from "./target.js";
 import type {
@@ -194,15 +198,36 @@ export async function handleClickClackInbound(params: {
         lastRoutePolicy: "session" as const,
       }
     : accountRoute;
-  if (params.account.replyMode === "model" && !discussionRoute) {
-    await dispatchModelReply({
-      account: params.account,
-      cfg: params.config as OpenClawConfig,
-      message,
-      route,
-      target,
+  const progress = createClickClackAgentProgressPublisher({
+    client: createClickClackClient({
+      baseUrl: params.account.apiEndpoint,
+      token: params.account.token,
       correlationId: params.correlationId,
-    });
+    }),
+    target: message.channel_id
+      ? { workspaceId: message.workspace_id, channelId: message.channel_id }
+      : { workspaceId: message.workspace_id, conversationId },
+    turnId: message.id,
+    onError: (error) => {
+      runtime.logging
+        .getChildLogger({ plugin: "clickclack", feature: "agent-progress" })
+        .warn(`clickclack progress publish failed: ${String(error)}`);
+    },
+  });
+  if (params.account.replyMode === "model" && !discussionRoute) {
+    progress.start();
+    try {
+      await dispatchModelReply({
+        account: params.account,
+        cfg: params.config as OpenClawConfig,
+        message,
+        route,
+        target,
+        correlationId: params.correlationId,
+      });
+    } finally {
+      await progress.finalize();
+    }
     return;
   }
   // Durable activity rows (streamed commentary + tool progress) are a
@@ -285,24 +310,26 @@ export async function handleClickClackInbound(params: {
     },
   });
   const runId = resolveClickClackAgentRunId(message.id);
-  const activityReplyOptions = activity
-    ? {
-        onModelSelected: (ctx: { provider: string; model: string; thinkLevel?: string }) => {
-          turnProvenance = {
-            model: ctx.provider && ctx.model ? `${ctx.provider}/${ctx.model}` : ctx.model,
-            thinking: ctx.thinkLevel,
-          };
-          activity?.setProvenance(turnProvenance);
-        },
-        onItemEvent: activity.onItemEvent,
-        commentaryProgressEnabled: true,
-        // The durable activity rows are ClickClack's own progress
-        // rendering, so item events must flow even when session verbose
-        // mode is off and the default tool-progress texts stay suppressed.
-        suppressDefaultToolProgressMessages: true,
-        allowProgressCallbacksWhenSourceDeliverySuppressed: true,
-      }
-    : undefined;
+  const activityReplyOptions = {
+    onModelSelected: (ctx: { provider: string; model: string; thinkLevel?: string }) => {
+      turnProvenance = {
+        model: ctx.provider && ctx.model ? `${ctx.provider}/${ctx.model}` : ctx.model,
+        thinking: ctx.thinkLevel,
+      };
+      activity?.setProvenance(turnProvenance);
+    },
+    onItemEvent: (payload: ClickClackItemEventPayload) => {
+      progress.onItemEvent(payload);
+      activity?.onItemEvent(payload);
+    },
+    commentaryProgressEnabled: true,
+    // ClickClack owns the native progress rendering, so item events must flow
+    // even when session verbose mode is off and default tool-progress texts
+    // stay suppressed.
+    suppressDefaultToolProgressMessages: true,
+    allowProgressCallbacksWhenSourceDeliverySuppressed: true,
+  };
+  progress.start();
   const dispatchPromise = runtime.channel.inbound.dispatch({
     cfg: params.config as OpenClawConfig,
     channel: CHANNEL_ID,
@@ -310,16 +337,10 @@ export async function handleClickClackInbound(params: {
     route: { agentId: route.agentId, dmScope: route.dmScope, sessionKey: route.sessionKey },
     ctxPayload,
     toolsAllow: params.account.toolsAllow,
-    // Provenance stamping shares the agentActivity opt-in: with the flag off
-    // the extension's wire payloads stay byte-identical to pre-activity
-    // builds, which is the documented contract for stock setups.
-    replyOptions:
-      runId || activityReplyOptions
-        ? {
-            ...(runId ? { runId } : {}),
-            ...activityReplyOptions,
-          }
-        : undefined,
+    replyOptions: {
+      ...(runId ? { runId } : {}),
+      ...activityReplyOptions,
+    },
     delivery: {
       deliver: async (payload) => {
         if (hasClickClackReplyMedia(payload)) {
@@ -379,5 +400,6 @@ export async function handleClickClackInbound(params: {
     await dispatchPromise;
   } finally {
     await activity?.finalize();
+    await progress.finalize();
   }
 }

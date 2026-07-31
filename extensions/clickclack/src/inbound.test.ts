@@ -368,7 +368,7 @@ describe("handleClickClackInbound", () => {
     expect(dispatchParams?.toolsAllow).toEqual(["message"]);
   });
 
-  it("wires durable activity reply options only when the account opts in", async () => {
+  it("always wires native progress and adds durable activity when opted in", async () => {
     const runtime = createRuntime();
     setClickClackRuntime(runtime);
     const cfg = {
@@ -399,7 +399,14 @@ describe("handleClickClackInbound", () => {
     const dispatchTurn = vi.mocked(runtime.channel.inbound.dispatch);
     expect(dispatchTurn).toHaveBeenCalledTimes(2);
     const withoutOptIn = dispatchTurn.mock.calls[0]?.[0] as {
-      replyOptions?: { runId?: unknown; onItemEvent?: unknown; onModelSelected?: unknown };
+      replyOptions?: {
+        runId?: unknown;
+        onItemEvent?: unknown;
+        onModelSelected?: unknown;
+        commentaryProgressEnabled?: unknown;
+        suppressDefaultToolProgressMessages?: unknown;
+        allowProgressCallbacksWhenSourceDeliverySuppressed?: unknown;
+      };
     };
     const withOptIn = dispatchTurn.mock.calls[1]?.[0] as {
       replyOptions?: {
@@ -411,9 +418,14 @@ describe("handleClickClackInbound", () => {
         allowProgressCallbacksWhenSourceDeliverySuppressed?: unknown;
       };
     };
-    expect(withoutOptIn.replyOptions).toEqual({
-      runId: `clickclack:${VALID_MESSAGE_ID}`,
-    });
+    expect(withoutOptIn.replyOptions?.runId).toBe(`clickclack:${VALID_MESSAGE_ID}`);
+    expect(typeof withoutOptIn.replyOptions?.onModelSelected).toBe("function");
+    expect(withoutOptIn.replyOptions?.commentaryProgressEnabled).toBe(true);
+    expect(withoutOptIn.replyOptions?.suppressDefaultToolProgressMessages).toBe(true);
+    expect(withoutOptIn.replyOptions?.allowProgressCallbacksWhenSourceDeliverySuppressed).toBe(
+      true,
+    );
+    expect(typeof withoutOptIn.replyOptions?.onItemEvent).toBe("function");
     expect(withOptIn.replyOptions?.runId).toBe(`clickclack:${SECOND_VALID_MESSAGE_ID}`);
     expect(typeof withOptIn.replyOptions?.onModelSelected).toBe("function");
     expect(withOptIn.replyOptions?.commentaryProgressEnabled).toBe(true);
@@ -498,9 +510,11 @@ describe("handleClickClackInbound", () => {
       message: createMessage({ id: "msg_invalid" }),
     });
 
-    expect(vi.mocked(runtime.channel.inbound.dispatch).mock.calls[0]?.[0].replyOptions).toBe(
-      undefined,
-    );
+    const replyOptions = vi.mocked(runtime.channel.inbound.dispatch).mock.calls[0]?.[0]
+      .replyOptions;
+    expect(replyOptions?.runId).toBeUndefined();
+    expect(typeof replyOptions?.onModelSelected).toBe("function");
+    expect(typeof replyOptions?.onItemEvent).toBe("function");
   });
 
   it("accepts ClickClack DM target syntax in allowFrom", async () => {
