@@ -1,6 +1,7 @@
 # Current-head ClickClack native progress proof
 
-- OpenClaw head: `fe7bd4eb3a` (`agent/clickclack-native-progress`, rebased onto upstream `origin/main` on 2026-07-31)
+- Behavior-bearing OpenClaw head: `fe7bd4eb3a`
+- Final PR head: `188250f111b7f4ad04d5c4735d5f0ff166ff3c6e` (rebased onto upstream `origin/main` at `b2b62b2e1e` on 2026-07-31; the intervening upstream commit does not touch ClickClack)
 - ClickClack server: local dev server at `127.0.0.1:18082`
 - Surface: `ClickClack PR Testing / #PR tests`
 - Endpoint: `POST /api/realtime/ephemeral`
