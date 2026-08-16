@@ -374,7 +374,7 @@ export function buildAgentContext(
   const identityAvatar = resolveAgentAvatarUrl(agent, agentIdentity)
     ? "custom"
     : (resolveAgentTextAvatar(agent, agentIdentity) ?? "—");
-  const skillFilter = Array.isArray(config.entry?.skills) ? config.entry?.skills : null;
+  const skillFilter = resolveAgentSkillsFilter(configForm, agent.id);
   const skillCount = skillFilter?.length ?? null;
   return {
     workspace,
