@@ -513,9 +513,8 @@ describe("agents skills panel (browser)", () => {
       ),
     ).toEqual([true, false]);
     const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
-    expect(buttons[0]?.disabled).toBe(true);
-    expect(buttons[1]?.disabled).toBe(false);
-    expect(buttons[2]?.disabled).toBe(true);
+    expect(buttons[0]?.disabled).toBe(false);
+    expect(buttons[1]?.disabled).toBe(true);
   });
 
   it("gates allowlist clearing separately from staged config edits", async () => {
@@ -551,9 +550,8 @@ describe("agents skills panel (browser)", () => {
     await Promise.resolve();
 
     const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
-    expect(buttons[0]?.disabled).toBe(true);
-    expect(buttons[1]?.disabled).toBe(false);
-    expect(buttons[2]?.disabled).toBe(true);
+    expect(buttons[0]?.disabled).toBe(false);
+    expect(buttons[1]?.disabled).toBe(true);
   });
 
   it("explains an unsatisfied one-of binary requirement", async () => {
