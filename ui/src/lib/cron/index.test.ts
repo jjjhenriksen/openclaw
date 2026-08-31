@@ -1144,6 +1144,8 @@ describe("cron controller", () => {
       id: "job-9",
       name: "Weekly report",
       description: "desc",
+      group: "Work",
+      tags: ["reports", "weekly"],
       sessionKey: "agent:ops:main",
       enabled: false,
       schedule: { kind: "every", everyMs: 7_200_000 },
@@ -1158,6 +1160,8 @@ describe("cron controller", () => {
     expect(state.cronEditingConfigRevision).toBe("config-revision-1");
     expect(state.cronRunsJobId).toBe("job-9");
     expect(state.cronForm.name).toBe("Weekly report");
+    expect(state.cronForm.group).toBe("Work");
+    expect(state.cronForm.tags).toBe("reports, weekly");
     expect(state.cronForm.sessionKey).toBe("agent:ops:main");
     expect(state.cronForm.enabled).toBe(false);
     expect(state.cronForm.scheduleKind).toBe("every");
@@ -1458,6 +1462,28 @@ describe("cron controller", () => {
       (call[1] as { patch?: { delivery?: { channel?: string } } } | undefined)?.patch?.delivery
         ?.channel,
     ).toBe("last");
+  });
+
+  it("includes group and tags in cron.update patches", async () => {
+    const { submit } = createCronSubmitHarness("job-metadata", {
+      method: "cron.update",
+      form: {
+        name: "Grouped task",
+        group: "Work",
+        tags: "reports, github",
+        scheduleKind: "every",
+        everyAmount: "1",
+        everyUnit: "hours",
+        payloadKind: "agentTurn",
+        payloadText: "run it",
+      },
+    });
+
+    const { call } = await submit();
+    expectRecordFields(requestPatch(call), {
+      group: "Work",
+      tags: ["reports", "github"],
+    });
   });
 
   it("includes trigger/model/thinking/stagger/bestEffort in cron.update patch", async () => {
@@ -2643,6 +2669,7 @@ describe("cron controller", () => {
           limit: 50,
           offset: 0,
           query: "daily",
+          group: "Work",
           enabled: "enabled",
           includeDeliveryPreviews: false,
           scheduleKind: "cron",
@@ -2673,6 +2700,7 @@ describe("cron controller", () => {
     });
     const state = createStateWithRequest(request, {
       cronJobsQuery: "daily",
+      cronJobsGroupFilter: "Work",
       cronJobsEnabledFilter: "enabled",
       cronJobsScheduleKindFilter: "cron",
       cronJobsLastStatusFilter: "error",

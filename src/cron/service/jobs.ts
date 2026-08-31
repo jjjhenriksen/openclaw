@@ -7,6 +7,7 @@ import {
 import type { CronConfig } from "../../config/types.cron.js";
 import { normalizeOptionalAccountId } from "../../routing/account-id.js";
 import { resolveCronDeliveryPlan } from "../delivery-plan.js";
+import { assertValidCronMetadata, normalizeCronGroup, normalizeCronTags } from "../metadata.js";
 import { assertCronJobStateTimestamps } from "../persisted-shape.js";
 import type { CronScheduledToolPolicy } from "../scheduled-tool-policy.js";
 import { normalizeCronScriptPayload } from "../script-payload.js";
@@ -210,6 +211,7 @@ export function createJob(
     toolsAllowExecTarget?: CronToolsAllowExecTarget;
   },
 ): CronStoredJob {
+  assertValidCronMetadata(input);
   const now = state.deps.nowMs();
   const id = normalizeOptionalString(input.id) ?? crypto.randomUUID();
   const schedule = normalizeJobSchedule(input.schedule, { kind: "create", nowMs: now });
@@ -248,6 +250,8 @@ export function createJob(
     sessionKey: normalizeOptionalString((input as { sessionKey?: unknown }).sessionKey),
     name: normalizeRequiredName(input.name),
     description: normalizeOptionalString(input.description),
+    ...(normalizeCronGroup(input.group) ? { group: normalizeCronGroup(input.group) } : {}),
+    ...(normalizeCronTags(input.tags) ? { tags: normalizeCronTags(input.tags) } : {}),
     enabled,
     deleteAfterRun,
     createdAtMs: now,
@@ -316,6 +320,25 @@ export function applyJobPatch(
   }
   if ("description" in patch) {
     job.description = normalizeOptionalString(patch.description);
+  }
+  if ("group" in patch || "tags" in patch) {
+    assertValidCronMetadata({ group: patch.group, tags: patch.tags });
+  }
+  if ("group" in patch) {
+    const group = normalizeCronGroup(patch.group);
+    if (group) {
+      job.group = group;
+    } else {
+      delete job.group;
+    }
+  }
+  if ("tags" in patch) {
+    const tags = normalizeCronTags(patch.tags);
+    if (tags) {
+      job.tags = tags;
+    } else {
+      delete job.tags;
+    }
   }
   if ("displayName" in patch) {
     const displayName = normalizeDeclarativeLabel(patch.displayName, "displayName", true);
