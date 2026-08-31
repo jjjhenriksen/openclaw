@@ -924,7 +924,7 @@ function renderJobRow(job: CronJob, props: CronProps) {
             <span class="cron-table__group-badge">${group}</span>
           </span>
           ${
-            description || !job.enabled
+            description || !job.enabled || job.tags?.length
               ? html`
                   <span class="cron-table__name-meta">
                     ${
@@ -945,10 +945,10 @@ function renderJobRow(job: CronJob, props: CronProps) {
                         : nothing
                     }
                     ${job.enabled ? nothing : renderDisabledNote(job)}
+                    ${job.tags?.map((tag) => html`<span class="cron-table__tag">${tag}</span>`)}
                   </span>
                 `
               : nothing
-            ${job.tags?.map((tag) => html`<span class="cron-table__tag">${tag}</span>`)}
           }
         </span>
       </button>
