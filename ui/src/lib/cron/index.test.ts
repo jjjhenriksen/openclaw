@@ -1525,6 +1525,7 @@ describe("cron controller", () => {
     const job = createCronJob({
       id: "heartbeat-task",
       name: "Heartbeat task",
+      effectiveGroup: "System",
       declarationKey: "heartbeat-task:main:abc",
       payload: { kind: "systemEvent", text: "task" },
     });

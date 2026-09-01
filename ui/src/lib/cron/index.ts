@@ -3,7 +3,6 @@ import { isRecord } from "@openclaw/normalization-core/record-coerce";
 import { normalizeLowercaseStringOrEmpty } from "@openclaw/normalization-core/string-coerce";
 import { sortUniqueStrings } from "@openclaw/normalization-core/string-normalization";
 import { resolveCronTriggerMinIntervalMs } from "../../../../src/config/cron-limits.js";
-import { isSystemOwnedCronJob } from "../../../../src/cron/metadata.js";
 import { isSystemOwnedCronPayloadKind } from "../../../../src/cron/types.js";
 import { createDeferredCore, type Deferred } from "../../../../src/shared/deferred.js";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
@@ -141,7 +140,7 @@ export function getCronJobGroup(job: CronJob): string {
   if ("effectiveGroup" in job && typeof job.effectiveGroup === "string") {
     return job.effectiveGroup;
   }
-  return isSystemOwnedCronJob(job) ? "System" : (job.group ?? "Ungrouped");
+  return job.group ?? "Ungrouped";
 }
 
 function hasCronJobPayload(job: CronJob): boolean {
@@ -1048,7 +1047,7 @@ function parseCronTagsInput(value: string): string[] {
 function jobToForm(job: CronJob, prev: CronFormState): CronFormState {
   const failureAlert = typeof job.failureAlert === "object" ? job.failureAlert : undefined;
   const payload = getCronJobPayload(job);
-  const metadataLocked = isSystemOwnedCronJob(job);
+  const metadataLocked = job.effectiveGroup === "System";
   const payloadLocked = isReadOnlyCronPayload(payload) || metadataLocked;
   if (!isCronFormSessionTarget(job.sessionTarget)) {
     throw new TypeError(`Invalid cron session target: ${job.sessionTarget}`);
