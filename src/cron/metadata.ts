@@ -1,3 +1,4 @@
+import { isSystemMonitorDeclaration } from "./system-owned-declaration.js";
 import { isSystemOwnedCronPayloadKind, type CronJob } from "./types.js";
 
 const CRON_GROUP_MAX_LENGTH = 64;
@@ -75,7 +76,10 @@ export function isSystemOwnedCronJob(job: Pick<CronJob, "declarationKey" | "payl
   // A declaration namespace can be reserved for Gateway reconciliation without
   // making every row in that namespace read-only. In particular, doctor-migrated
   // heartbeat tasks use public systemEvent payloads and remain operator-managed.
-  return isSystemOwnedCronPayloadKind(job.payload?.kind);
+  return (
+    isSystemOwnedCronPayloadKind(job.payload?.kind) ||
+    isSystemMonitorDeclaration(job.declarationKey)
+  );
 }
 
 export function resolveCronJobGroup(
