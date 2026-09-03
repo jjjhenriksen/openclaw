@@ -35,7 +35,7 @@ import { canGoBackInNativeEmbed } from "./browser.ts";
 import type { ApplicationContext, ApplicationNavigationOptions } from "./context.ts";
 import { resolveControlUiAuthToken } from "./control-ui-auth.ts";
 import { gatewayPresentationScope } from "./gateway-presentation-scope.ts";
-import { loadGatewayRegistry, selectGatewayProfile } from "./gateway-registry.ts";
+import { loadGatewayRegistryForGateway, selectGatewayProfile } from "./gateway-registry.ts";
 import {
   isOptionalElementDefined,
   KEYBOARD_SHORTCUTS_ELEMENT,
@@ -286,7 +286,7 @@ export function renderApplicationShell(host: ShellViewHost) {
       pinnedAgentIds: navigationSnapshot.pinnedAgentIds,
       themeMode: context.theme.mode,
       gatewayVersion: config.serverVersion ?? gatewaySnapshot.hello?.server?.version ?? null,
-      gatewayRegistry: loadGatewayRegistry({ url: context.gateway.connection.gatewayUrl }),
+      gatewayRegistry: loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
       devGitBranch: config.devGitBranch,
       watchUpdateProgress,
       onOpenApprovals: () => host.openApprovals(),
@@ -304,9 +304,9 @@ export function renderApplicationShell(host: ShellViewHost) {
         context.gateway.connect({
           gatewayUrl: profile.url,
           sessionKey: loadGatewaySessionSelection(profile.url).sessionKey,
-         });
-       },
-       onManageGateways: () => host.navigate("connection"),
+        });
+      },
+      onManageGateways: () => host.navigate("connection"),
       onOpenNewSession: openNewSession,
       onUpdateSidebarEntries: (entries: string[]) =>
         context.navigation.update({ sidebarEntries: entries }),
