@@ -9,7 +9,7 @@ import { subtitleForRoute, titleForRoute } from "../../app-navigation.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import {
   createGatewayProfile,
-  loadGatewayRegistry,
+  loadGatewayRegistryForGateway,
   removeGatewayProfile,
   selectGatewayProfile,
   upsertGatewayProfile,
@@ -51,9 +51,9 @@ export class ConnectionPage extends OpenClawLightDomElement {
   @state() private settings: UiSettings = loadSettings();
   @state() private password = "";
   @state() private gatewaySecretVisible = false;
-  @state() private gatewayRegistry: GatewayRegistry = loadGatewayRegistry({
-    url: this.settings.gatewayUrl,
-  });
+  @state() private gatewayRegistry: GatewayRegistry = loadGatewayRegistryForGateway(
+    this.settings.gatewayUrl,
+  );
   @state() private gatewayRegistryError = "";
   @state() private newGatewayName = "";
   @state() private newGatewayUrl = "";
@@ -296,7 +296,7 @@ export class ConnectionPage extends OpenClawLightDomElement {
   private resetConnectionDraft() {
     const { gatewayUrl, token, password } = this.context.gateway.connection;
     this.settings = { ...this.settings, gatewayUrl, token };
-    this.gatewayRegistry = loadGatewayRegistry({ url: gatewayUrl });
+    this.gatewayRegistry = loadGatewayRegistryForGateway(gatewayUrl);
     this.password = password;
     this.resetSensitiveUi();
   }
@@ -320,7 +320,15 @@ export class ConnectionPage extends OpenClawLightDomElement {
       this.gatewayRegistryError = t("connection.registry.invalidUrl");
       return;
     }
+    const hadProfile = this.gatewayRegistry.gateways.some((gateway) => gateway.id === profile.id);
     this.gatewayRegistry = upsertGatewayProfile(profile, { select: true });
+    if (
+      !hadProfile &&
+      !this.gatewayRegistry.gateways.some((gateway) => gateway.id === profile.id)
+    ) {
+      this.gatewayRegistryError = t("connection.registry.capacity");
+      return;
+    }
     this.gatewayRegistryError = "";
     this.newGatewayName = "";
     this.newGatewayUrl = "";
