@@ -18,6 +18,7 @@ import {
   removeGatewayProfile,
   selectGatewayProfile,
   upsertGatewayProfile,
+  GatewayRegistryPersistenceError,
   type GatewayRegistry,
 } from "../../app/gateway-registry.ts";
 import {
@@ -249,7 +250,15 @@ export class ConnectionPage extends OpenClawLightDomElement {
       return;
     }
     const hadProfile = this.gatewayRegistry.gateways.some((gateway) => gateway.id === profile.id);
-    this.gatewayRegistry = upsertGatewayProfile(profile, { select: true });
+    try {
+      this.gatewayRegistry = upsertGatewayProfile(profile, { select: true });
+    } catch (error) {
+      if (error instanceof GatewayRegistryPersistenceError) {
+        this.gatewayRegistryError = t("connection.registry.persistence");
+        return;
+      }
+      throw error;
+    }
     if (
       !hadProfile &&
       !this.gatewayRegistry.gateways.some((gateway) => gateway.id === profile.id)
@@ -272,9 +281,15 @@ export class ConnectionPage extends OpenClawLightDomElement {
     if (!profile) {
       return;
     }
-    this.gatewayRegistry = selectGatewayProfile(id, {
-      url: this.context.gateway.connection.gatewayUrl,
-    });
+    try {
+      this.gatewayRegistry = selectGatewayProfile(id);
+    } catch (error) {
+      if (error instanceof GatewayRegistryPersistenceError) {
+        this.gatewayRegistryError = t("connection.registry.persistence");
+        return;
+      }
+      throw error;
+    }
     this.gatewayRegistryError = "";
     this.sessionKeyDirty = false;
     this.context.gateway.connect({
@@ -292,11 +307,27 @@ export class ConnectionPage extends OpenClawLightDomElement {
       return;
     }
     const wasActive = this.gatewayRegistry.activeGatewayId === id;
-    this.gatewayRegistry = removeGatewayProfile(id, {
-      url: this.context.gateway.connection.gatewayUrl,
-    });
+    try {
+      this.gatewayRegistry = removeGatewayProfile(id);
+    } catch (error) {
+      if (error instanceof GatewayRegistryPersistenceError) {
+        this.gatewayRegistryError = t("connection.registry.persistence");
+        return;
+      }
+      throw error;
+    }
     if (wasActive && this.gatewayRegistry.activeGatewayId) {
-      this.selectGateway(this.gatewayRegistry.activeGatewayId);
+      const nextProfile = this.gatewayRegistry.gateways.find(
+        (gateway) => gateway.id === this.gatewayRegistry.activeGatewayId,
+      );
+      if (nextProfile) {
+        this.gatewayRegistryError = "";
+        this.sessionKeyDirty = false;
+        this.context.gateway.connect({
+          gatewayUrl: nextProfile.url,
+          sessionKey: loadGatewaySessionSelection(nextProfile.url).sessionKey,
+        });
+      }
     }
   }
 
