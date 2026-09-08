@@ -4,7 +4,7 @@ import { html, nothing } from "lit";
 import type { SystemInfoResult } from "../../../../packages/gateway-protocol/src/index.js";
 import type { GatewayHelloOk } from "../../api/gateway.ts";
 import type { ApplicationGatewayPhase } from "../../app/gateway.ts";
-import type { GatewayRegistry } from "../../app/gateway-registry.ts";
+import { GATEWAY_NAME_MAX_LENGTH, type GatewayRegistry } from "../../app/gateway-registry.ts";
 import type { UiSettings } from "../../app/settings.ts";
 import { renderGatewayVitals, type GatewayStatusSample } from "../../components/gateway-vitals.ts";
 import {
@@ -33,6 +33,8 @@ type ConnectionProps = {
   newGatewayName?: string;
   newGatewayUrl?: string;
   gatewayRegistryError?: string;
+  renamingGatewayId?: string | null;
+  renamingGatewayName?: string;
   settings: UiSettings;
   /** URL of the live connection; the draft in `settings` may differ until Connect. */
   liveGatewayUrl: string;
@@ -57,6 +59,10 @@ type ConnectionProps = {
   onNewGatewayUrlChange?: (next: string) => void;
   onAddGateway?: () => void;
   onSelectGateway?: (id: string) => void;
+  onBeginRenameGateway?: (id: string) => void;
+  onRenamingGatewayNameChange?: (next: string) => void;
+  onSaveGatewayName?: () => void;
+  onCancelRenameGateway?: () => void;
   onRemoveGateway?: (id: string) => void;
   onSessionKeyChange: (next: string) => void;
   onToggleGatewaySecretVisibility: () => void;
@@ -168,6 +174,10 @@ function renderPing(props: ConnectionProps) {
   </div>`;
 }
 
+function inputValue(event: Event): string {
+  return event.currentTarget instanceof HTMLInputElement ? event.currentTarget.value : "";
+}
+
 function renderGatewayRegistrySection(props: ConnectionProps) {
   const registry = props.gatewayRegistry;
   if (!registry) {
@@ -176,56 +186,114 @@ function renderGatewayRegistrySection(props: ConnectionProps) {
   return renderSettingsSection(
     { title: t("connection.registry.title"), description: t("connection.registry.subtitle") },
     html`
-      ${registry.gateways.map(
-        (gateway) => html`
+      ${registry.gateways.map((gateway) => {
+        const isRenaming = props.renamingGatewayId === gateway.id;
+        return html`
           <div class="settings-row gateway-registry__row">
             <div class="settings-row__text">
-              <span class="settings-row__title">
-                ${gateway.name}
-                ${gateway.id === registry.activeGatewayId
-                  ? html`<span class="gateway-registry__active">
-                      ${t("connection.registry.active")}
-                    </span>`
-                  : nothing}
-              </span>
+              ${isRenaming
+                ? html`<input
+                    class="settings-input gateway-registry__name-input"
+                    aria-label=${t("connection.registry.renameInputAria", { name: gateway.name })}
+                    autocomplete="off"
+                    autofocus
+                    maxlength=${GATEWAY_NAME_MAX_LENGTH}
+                    .value=${props.renamingGatewayName ?? ""}
+                    @input=${(event: Event) =>
+                      props.onRenamingGatewayNameChange?.(inputValue(event))}
+                    @keydown=${(event: KeyboardEvent) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        props.onSaveGatewayName?.();
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        props.onCancelRenameGateway?.();
+                      }
+                    }}
+                  />`
+                : html`<span class="settings-row__title">
+                    ${gateway.name}
+                    ${gateway.id === registry.activeGatewayId
+                      ? html`<span class="gateway-registry__active">
+                          ${t("connection.registry.active")}
+                        </span>`
+                      : nothing}
+                  </span>`}
               <span class="settings-row__desc gateway-registry__url" title=${gateway.url}
                 >${gateway.url}</span
               >
             </div>
             <div class="settings-row__control gateway-registry__actions">
-              ${gateway.id === registry.activeGatewayId
-                ? html`<button
-                    class="btn btn--sm"
-                    type="button"
-                    aria-label=${t("connection.registry.activeAria", { name: gateway.name })}
-                    disabled
-                  >
-                    ${t("connection.registry.active")}
-                  </button>`
-                : html`<button
-                    class="btn btn--sm"
-                    type="button"
-                    aria-label=${t("connection.registry.switchAria", { name: gateway.name })}
-                    @click=${() => props.onSelectGateway?.(gateway.id)}
-                  >
-                    ${t("connection.registry.switch")}
-                  </button>`}
-              <button
-                class="btn btn--sm btn--ghost"
-                type="button"
-                aria-label=${t("connection.registry.removeAria", { name: gateway.name })}
-                ?disabled=${registry.gateways.length <= 1}
-                title=${registry.gateways.length <= 1
-                  ? t("connection.registry.lastGateway")
-                  : nothing}
-                @click=${() => props.onRemoveGateway?.(gateway.id)}
-              >
-                ${t("connection.registry.remove")}
-              </button>
+              ${isRenaming
+                ? html`
+                    <button
+                      class="btn btn--sm"
+                      type="button"
+                      aria-label=${t("connection.registry.saveRenameAria", {
+                        name: gateway.name,
+                      })}
+                      @click=${props.onSaveGatewayName}
+                    >
+                      ${t("common.save")}
+                    </button>
+                    <button
+                      class="btn btn--sm btn--ghost"
+                      type="button"
+                      aria-label=${t("connection.registry.cancelRenameAria", {
+                        name: gateway.name,
+                      })}
+                      @click=${props.onCancelRenameGateway}
+                    >
+                      ${t("common.cancel")}
+                    </button>
+                  `
+                : html`
+                    ${gateway.id === registry.activeGatewayId
+                      ? html`<button
+                          class="btn btn--sm"
+                          type="button"
+                          aria-label=${t("connection.registry.activeAria", {
+                            name: gateway.name,
+                          })}
+                          disabled
+                        >
+                          ${t("connection.registry.active")}
+                        </button>`
+                      : html`<button
+                          class="btn btn--sm"
+                          type="button"
+                          aria-label=${t("connection.registry.switchAria", {
+                            name: gateway.name,
+                          })}
+                          @click=${() => props.onSelectGateway?.(gateway.id)}
+                        >
+                          ${t("connection.registry.switch")}
+                        </button>`}
+                    <button
+                      class="btn btn--sm btn--ghost"
+                      type="button"
+                      aria-label=${t("connection.registry.renameAria", { name: gateway.name })}
+                      @click=${() => props.onBeginRenameGateway?.(gateway.id)}
+                    >
+                      ${t("connection.registry.rename")}
+                    </button>
+                    <button
+                      class="btn btn--sm btn--ghost"
+                      type="button"
+                      aria-label=${t("connection.registry.removeAria", { name: gateway.name })}
+                      ?disabled=${registry.gateways.length <= 1}
+                      title=${registry.gateways.length <= 1
+                        ? t("connection.registry.lastGateway")
+                        : nothing}
+                      @click=${() => props.onRemoveGateway?.(gateway.id)}
+                    >
+                      ${t("connection.registry.remove")}
+                    </button>
+                  `}
             </div>
           </div>
-        `,
-      )}
+        `;
+      })}
       <div class="gateway-registry__add">
         ${renderSettingsRow({
           title: t("connection.registry.name"),
@@ -234,9 +302,9 @@ function renderGatewayRegistrySection(props: ConnectionProps) {
               class="settings-input"
               aria-label=${t("connection.registry.name")}
               autocomplete="off"
+              maxlength=${GATEWAY_NAME_MAX_LENGTH}
               .value=${props.newGatewayName ?? ""}
-              @input=${(event: Event) =>
-                props.onNewGatewayNameChange?.((event.target as HTMLInputElement).value)}
+              @input=${(event: Event) => props.onNewGatewayNameChange?.(inputValue(event))}
             />
           `,
         })}
@@ -249,8 +317,7 @@ function renderGatewayRegistrySection(props: ConnectionProps) {
               autocomplete="url"
               placeholder="wss://team.example/openclaw"
               .value=${props.newGatewayUrl ?? ""}
-              @input=${(event: Event) =>
-                props.onNewGatewayUrlChange?.((event.target as HTMLInputElement).value)}
+              @input=${(event: Event) => props.onNewGatewayUrlChange?.(inputValue(event))}
             />
           `,
         })}
