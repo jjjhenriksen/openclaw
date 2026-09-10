@@ -134,13 +134,13 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
   ) {
     return false;
   }
+  state.pos += close + delimiter.close.length;
   if (silent) {
     return true;
   }
   const token = state.push("math_inline", "span", 0);
   token.content = source.slice(contentStart, close);
   token.meta = { displayMode: delimiter.displayMode };
-  state.pos += close + delimiter.close.length;
   return true;
 }
 

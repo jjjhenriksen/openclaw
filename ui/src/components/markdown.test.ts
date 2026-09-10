@@ -352,6 +352,12 @@ describe("toSanitizedMarkdownHtml", () => {
       expect(fragment.querySelector(".katex-html[aria-hidden='true']")).not.toBeNull();
       expect(fragment.querySelector(".strut[style]")).not.toBeNull();
     });
+
+    it("supports math inside link labels during silent lookahead", () => {
+      const fragment = htmlFragment(toSanitizedMarkdownHtml("[$x$](https://example.com)"));
+
+      expect(fragment.querySelector("a .katex")).not.toBeNull();
+    });
   });
 
   describe("assistant transcript-role annotations", () => {
