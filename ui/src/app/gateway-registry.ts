@@ -171,7 +171,7 @@ export function loadGatewayRegistryForGateway(url: string): GatewayRegistry {
   const activeGatewayId = gatewayProfileId(url);
   return registry.gateways.some((gateway) => gateway.id === activeGatewayId)
     ? { ...registry, activeGatewayId }
-    : registry;
+    : { ...registry, activeGatewayId: null };
 }
 
 function saveGatewayRegistry(registry: GatewayRegistry): GatewayRegistry {

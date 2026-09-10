@@ -323,21 +323,33 @@ function readSettingsForGateway(
   storage: Storage | null,
   targetUrl: string,
 ): PersistedSettingsSource | null {
-  const scoped = parsePersistedSettings(storage?.getItem(settingsKeyForGateway(targetUrl)) ?? null);
-  if (
-    scoped &&
-    (!normalizeOptionalString(scoped.gatewayUrl) || settingsMatchGatewayTarget(scoped, targetUrl))
-  ) {
-    return {
-      gatewayUrl: normalizeOptionalString(scoped.gatewayUrl) ?? targetUrl,
-      parsed: scoped,
-    };
+  const candidates = [
+    storage?.getItem(settingsKeyForGateway(targetUrl)) ?? null,
+    // Before query-aware credential scopes, query-bearing gateways shared the
+    // origin key. Only accept that data when its stored URL proves ownership.
+    storage?.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(targetUrl)}`) ?? null,
+  ];
+  for (const raw of candidates) {
+    const parsed = parsePersistedSettings(raw);
+    if (
+      parsed &&
+      (!normalizeOptionalString(parsed.gatewayUrl) || settingsMatchGatewayTarget(parsed, targetUrl))
+    ) {
+      return {
+        gatewayUrl: normalizeOptionalString(parsed.gatewayUrl) ?? targetUrl,
+        parsed,
+      };
+    }
   }
   return null;
 }
 
 function tokenSessionKeyForGateway(gatewayUrl: string): string {
   return `${TOKEN_SESSION_KEY_PREFIX}${gatewayCredentialScope(gatewayUrl)}`;
+}
+
+function legacyTokenSessionKeyForGateway(gatewayUrl: string): string {
+  return `${TOKEN_SESSION_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`;
 }
 
 function resolveScopedSessionSelection(
@@ -391,7 +403,20 @@ function loadSessionToken(gatewayUrl: string): string {
     }
     storage.removeItem(LEGACY_TOKEN_SESSION_KEY);
     const token = storage.getItem(tokenSessionKeyForGateway(gatewayUrl));
-    return normalizeOptionalString(token) ?? "";
+    if (token) {
+      return normalizeOptionalString(token) ?? "";
+    }
+    // Recover an old token only when the legacy settings record belongs to
+    // this exact endpoint.
+    const legacySettings = parsePersistedSettings(
+      storage.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`),
+    );
+    if (!legacySettings || !settingsMatchGatewayTarget(legacySettings, gatewayUrl)) {
+      return "";
+    }
+    return normalizeOptionalString(
+      storage.getItem(legacyTokenSessionKeyForGateway(gatewayUrl)),
+    ) ?? "";
   } catch {
     return "";
   }
