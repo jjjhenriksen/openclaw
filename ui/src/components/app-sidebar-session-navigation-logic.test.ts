@@ -486,8 +486,14 @@ describe("sidebar navigation lineage ownership", () => {
     const promoted = collectPromotedPinnedDashboardChildRows({
       rows: [navigationParent, pinnedDashboardChild],
       scopedRootKeys: new Set([navigationParent.key]),
-      showCron: false,
-      showSystem: false,
+      visibilityOptions: {
+        agentId: "main",
+        defaultAgentId: "main",
+        filterByAgent: true,
+        showCron: false,
+        showSystem: false,
+        archivedFilter: "active",
+      },
     });
     const projected = projectSessionTree({
       roots: [navigationParent, ...promoted],
@@ -510,6 +516,30 @@ describe("sidebar navigation lineage ownership", () => {
       [navigationParent.key, false, []],
       [pinnedDashboardChild.key, false, []],
     ]);
+  });
+
+  it("does not promote a pinned dashboard child from another agent", () => {
+    const crossAgentChild: GatewaySessionRow = {
+      ...child,
+      key: "agent:other:subagent:child",
+      boardFace: "dashboard",
+      pinned: true,
+    };
+
+    expect(
+      collectPromotedPinnedDashboardChildRows({
+        rows: [navigationParent, child, crossAgentChild],
+        scopedRootKeys: new Set([navigationParent.key]),
+        visibilityOptions: {
+          agentId: "main",
+          defaultAgentId: "main",
+          filterByAgent: true,
+          showCron: false,
+          showSystem: false,
+          archivedFilter: "active",
+        },
+      }),
+    ).toEqual([]);
   });
 
   it.each([

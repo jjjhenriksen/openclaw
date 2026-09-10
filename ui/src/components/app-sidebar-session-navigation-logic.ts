@@ -450,8 +450,7 @@ export function collectPromotedMainChildRows(input: {
 export function collectPromotedPinnedDashboardChildRows(input: {
   rows: readonly GatewaySessionRow[];
   scopedRootKeys: ReadonlySet<string>;
-  showCron: boolean;
-  showSystem: boolean;
+  visibilityOptions: Parameters<typeof filterVisibleSessionRows>[1];
 }): GatewaySessionRow[] {
   return input.rows.filter((row) => {
     const parentKey = resolveUiSessionNavigationParentKey(row);
@@ -461,8 +460,7 @@ export function collectPromotedPinnedDashboardChildRows(input: {
       parentKey != null &&
       !input.scopedRootKeys.has(row.key) &&
       !row.archived &&
-      (input.showCron || !isCronSessionKey(row.key)) &&
-      (input.showSystem || !isSystemCreatedSessionRow(row))
+      sessionMatchesVisibleSessionScope(row, input.visibilityOptions)
     );
   });
 }

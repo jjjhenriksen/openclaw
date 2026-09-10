@@ -670,8 +670,7 @@ export class AppSidebarSessionNavigationElement extends AppSidebarBase {
     const promotedPinnedDashboardRows = collectPromotedPinnedDashboardChildRows({
       rows: sessionCandidateRows,
       scopedRootKeys,
-      showCron: this.sessionsShowCron,
-      showSystem: this.sessionsShowSystem,
+      visibilityOptions,
     });
     for (const row of promotedPinnedDashboardRows) {
       if (!scopedRootKeys.has(row.key)) {
