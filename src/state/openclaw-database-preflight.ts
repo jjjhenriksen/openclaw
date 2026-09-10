@@ -13,11 +13,11 @@ import {
 import { openNodeSqliteDatabase, resolveImmutableSqliteFileUri } from "../infra/node-sqlite.js";
 import { hasNodeErrorCode } from "../infra/path-guards.js";
 import { assertSqliteIntegrity } from "../infra/sqlite-integrity.js";
-import { prepareSqliteReadOnlyLocation } from "../infra/sqlite-readonly-location.js";
 import {
   collectSqliteSchemaIssues,
   type SqliteSchemaIssue,
 } from "../infra/sqlite-schema-contract.js";
+import { prepareSqliteReadOnlyLocation } from "../infra/sqlite-snapshot-source.js";
 import {
   describeRunningOpenClawBuild,
   readSqliteUserVersion,
@@ -46,6 +46,10 @@ import {
   OPENCLAW_SQLITE_BUSY_TIMEOUT_MS,
   OPENCLAW_STATE_SCHEMA_VERSION,
 } from "./openclaw-state-db-contract.js";
+import {
+  closeWorkshopIndexReadDatabase,
+  openDanglingWorkshopIndexReadAdmission,
+} from "./openclaw-state-db-dangling-workshop-index.js";
 import {
   assertOpenClawStateDatabaseOwner,
   assertOpenClawStateDatabaseForMaintenance,
@@ -460,6 +464,7 @@ export async function preflightOpenClawDatabaseSchemas(options: {
   const statePath = path.resolve(resolveOpenClawStateSqlitePath(options.env));
   let registeredDatabases: ReturnType<typeof readRegisteredAgentDatabases> = [];
   let stateDatabase: DatabaseSync | undefined;
+  let closeStateSchemaReadAdmission: (() => void) | undefined;
   let stateSnapshot: Awaited<ReturnType<typeof prepareSqliteReadOnlyLocation>> | undefined;
   const inspectCandidatePresence = (
     databasePath: string,
@@ -490,6 +495,7 @@ export async function preflightOpenClawDatabaseSchemas(options: {
       stateDatabase = openNodeSqliteDatabase(stateSnapshot.location, {
         readOnly: true,
       });
+      closeStateSchemaReadAdmission = openDanglingWorkshopIndexReadAdmission(stateDatabase);
       stateDatabase.exec(`PRAGMA busy_timeout = ${OPENCLAW_SQLITE_BUSY_TIMEOUT_MS};`);
       const stateVersion = readSqliteUserVersion(stateDatabase);
       const contentVersion =
@@ -594,8 +600,7 @@ export async function preflightOpenClawDatabaseSchemas(options: {
   } finally {
     try {
       if (stateDatabase) {
-        clearNodeSqliteKyselyCacheForDatabase(stateDatabase);
-        stateDatabase.close();
+        closeWorkshopIndexReadDatabase(stateDatabase, closeStateSchemaReadAdmission);
       }
     } finally {
       stateSnapshot?.cleanup();

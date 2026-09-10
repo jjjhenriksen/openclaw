@@ -9,7 +9,7 @@ import {
 import { collectNestedErrorCandidates } from "../../infra/error-graph-internal.js";
 import { formatErrorMessage, formatUncaughtError } from "../../infra/errors.js";
 import type { PackageUpdateTransaction } from "../../infra/package-update-steps.js";
-import { isSqliteLockError } from "../../infra/sqlite-transaction.js";
+import { isSqliteLockError } from "../../infra/sqlite-error-diagnostics.js";
 import type { readUpdateStateSchemaVersions } from "../../infra/update-candidate-state.js";
 import {
   markControlPlaneUpdateRestartSentinelFailure,
@@ -126,7 +126,7 @@ export class UpdateCommandPendingRecoveryFailure extends UpdateCommandFailure {
   }
 }
 
-/** Reporting-only marker: the durable finalizer already committed and printed the outcome. */
+/** Reporting-only marker: the outcome was recorded and printed; no follow-up triage. */
 export class UpdateCommandFinalizedRecoveryFailure extends UpdateCommandFailure {
   constructor(result: UpdateRunResult) {
     super(result, 1);
@@ -160,6 +160,15 @@ export function mergeWindowsTaskRecoveryFailure(
   };
 }
 
+/** The restored package and its running service have both passed verification. */
+export function isVerifiedUpdateRollback(result: UpdateRunResult): boolean {
+  return (
+    result.recovery?.serviceRestartSafe === true &&
+    result.recovery.packageRollbackVerified === true &&
+    result.recovery.service === "healthy"
+  );
+}
+
 export function resolveAutomaticUpdateTriage(
   result: UpdateRunResult,
   detail: string | undefined,
@@ -174,12 +183,8 @@ export function resolveAutomaticUpdateTriage(
 ): TriageFailureContext | undefined {
   // Triage follows a failed update, never a verified rollback: the restored
   // generation is serving, and an autonomous repair turn there is unwanted.
-  const verifiedRollback =
-    result.recovery?.serviceRestartSafe === true &&
-    result.recovery.packageRollbackVerified === true &&
-    result.recovery.service === "healthy";
   const eligible =
-    !verifiedRollback &&
+    !isVerifiedUpdateRollback(result) &&
     (params.mutationStarted || result.reason === "restart-unhealthy") &&
     result.reason !== "service-revalidation-failed" &&
     !(
