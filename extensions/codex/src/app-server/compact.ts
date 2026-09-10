@@ -49,8 +49,8 @@ import {
   type CodexAppServerThreadBinding,
 } from "./session-binding.js";
 import {
-  getLeasedSharedCodexAppServerClient,
-  releaseLeasedSharedCodexAppServerClient,
+  createIsolatedCodexAppServerClient,
+  retainSharedCodexAppServerClientByInstanceId,
   type CodexAppServerClientFactory,
 } from "./shared-client.js";
 import {
@@ -551,7 +551,7 @@ async function compactCodexNativeThread(
     return { ok: false, compacted: false, reason: "auth profile mismatch for session binding" };
   }
   const shouldReleaseDefaultLease = !options.clientFactory;
-  const clientFactory = options.clientFactory ?? getLeasedSharedCodexAppServerClient;
+  const clientFactory = options.clientFactory ?? createIsolatedCodexAppServerClient;
   const runtimeAuthPlan = params.runtimeAuthPlan ?? params.runtimePlan?.auth;
   // A user-home app-server keeps its native Codex account; injecting a prepared key
   // would rewrite the CODEX_HOME auth that Codex CLI and Desktop share.
@@ -573,18 +573,23 @@ async function compactCodexNativeThread(
       params.abortSignal,
       async () => {
         assertCurrent();
-        const client = await clientFactory({
-          startOptions: appServer.start,
-          ...(preparedApiKey
-            ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
-            : { authProfileId: connection.clientAuthProfileId }),
-          agentDir: params.agentDir,
-          config: params.config,
-          assertCurrent,
-        });
+        const boundClientLease = retainSharedCodexAppServerClientByInstanceId(binding.clientId);
+        const client =
+          boundClientLease?.client ??
+          (await clientFactory({
+            startOptions: appServer.start,
+            ...(preparedApiKey
+              ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
+              : { authProfileId: connection.clientAuthProfileId }),
+            authRequirement: runtimeAuthPlan?.modelRoute?.authRequirement,
+            agentDir: params.agentDir,
+            config: params.config,
+            assertCurrent,
+          }));
         let releaseThreadSubscription: (() => Promise<void>) | undefined;
         let retainedThreadOwnership: CodexAppServerLiveThreadOwnership | undefined;
         let compactionSucceeded = false;
+        let temporaryClientExited = true;
         let compactionRequestDefinitelyRejected = false;
         let tokensAfter: number | undefined;
         const releaseCompactionThread = async (threadId: string) => {
@@ -892,10 +897,18 @@ async function compactCodexNativeThread(
               await releaseThreadSubscription?.();
             }
           } finally {
-            if (shouldReleaseDefaultLease) {
-              releaseLeasedSharedCodexAppServerClient(client);
+            boundClientLease?.release();
+            // Unsubscribe keeps the native thread loaded. A cold compaction owns
+            // its process and must release the writer before a later turn resumes.
+            if (!boundClientLease && shouldReleaseDefaultLease) {
+              temporaryClientExited = await client.closeAndWait();
             }
           }
+        }
+        if (!temporaryClientExited) {
+          throw new CodexAppServerUnsafeSubscriptionError(
+            `Codex compaction client did not exit: ${binding.threadId}`,
+          );
         }
         const details: JsonObject = {
           backend: "codex-app-server",
