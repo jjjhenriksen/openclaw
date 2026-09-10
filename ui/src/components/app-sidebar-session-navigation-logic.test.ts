@@ -519,6 +519,11 @@ describe("sidebar navigation lineage ownership", () => {
   });
 
   it("does not promote a pinned dashboard child from another agent", () => {
+    const sameAgentChild: GatewaySessionRow = {
+      ...child,
+      boardFace: "dashboard",
+      pinned: true,
+    };
     const crossAgentChild: GatewaySessionRow = {
       ...child,
       key: "agent:other:subagent:child",
@@ -528,7 +533,7 @@ describe("sidebar navigation lineage ownership", () => {
 
     expect(
       collectPromotedPinnedDashboardChildRows({
-        rows: [navigationParent, child, crossAgentChild],
+        rows: [navigationParent, sameAgentChild, crossAgentChild],
         scopedRootKeys: new Set([navigationParent.key]),
         visibilityOptions: {
           agentId: "main",
@@ -539,7 +544,7 @@ describe("sidebar navigation lineage ownership", () => {
           archivedFilter: "active",
         },
       }),
-    ).toEqual([]);
+    ).toEqual([sameAgentChild]);
   });
 
   it.each([
