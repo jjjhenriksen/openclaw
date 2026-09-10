@@ -112,6 +112,12 @@ describe.runIf("__vitest_browser__" in globalThis)("identity menu keyboard navig
     );
     expect(teamItem).not.toBeNull();
     expect(teamItem?.textContent).toContain("Team Claw");
+    expect(menu?.querySelector(".sidebar-identity-menu__gateway-heading")?.textContent).toContain(
+      "Switch gateway",
+    );
+    expect(menu?.querySelector(".sidebar-identity-menu__manage-gateways")?.textContent).toContain(
+      "Manage gateways",
+    );
     menu?.dispatchEvent(
       new CustomEvent("wa-select", {
         bubbles: true,
