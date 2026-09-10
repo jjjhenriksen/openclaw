@@ -10,6 +10,7 @@ import { parseGitHubLinkTarget } from "./github-link-target.ts";
 import { renderAssistantTranscriptPlainTextFallback } from "./markdown-assistant-transcript.ts";
 import { renderMarkdownCodeBlock } from "./markdown-code-blocks.ts";
 import { isHostLocalMarkdownFileHref } from "./markdown-file-links.ts";
+import { resetMarkdownMathBudget } from "./markdown-math.ts";
 import { createMarkdownParser } from "./markdown-parser.ts";
 import {
   normalizeMarkdownRenderOptions,
@@ -57,6 +58,37 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
+  "math",
+  "annotation",
+  "menclose",
+  "merror",
+  "mfrac",
+  "mi",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mroot",
+  "mrow",
+  "ms",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msup",
+  "msubsup",
+  "mtable",
+  "mtd",
+  "mtr",
+  "munder",
+  "munderover",
+  "semantics",
+  "svg",
+  "path",
+  "line",
+  "use",
 ];
 
 const allowedAttrs = [
@@ -86,6 +118,21 @@ const allowedAttrs = [
   "aria-label",
   "aria-pressed",
   "role",
+  "aria-hidden",
+  "aria-level",
+  "xmlns",
+  "viewBox",
+  "width",
+  "height",
+  "x",
+  "y",
+  "d",
+  "fill",
+  "stroke",
+  "stroke-width",
+  "focusable",
+  "preserveAspectRatio",
+  "style",
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -570,12 +617,14 @@ function renderSanitizedMarkdown(renderInput: string, renderOptions: MarkdownRen
   }
   let rendered: string;
   try {
+    resetMarkdownMathBudget();
     rendered = markdownParser.render(input, renderOptions);
   } catch (err) {
     // Fall back to escaped plain text when md.render() throws (#36213).
     console.warn("[markdown] md.render failed, falling back to plain text:", err);
     rendered = toEscapedPlainTextHtml(input, renderOptions);
   }
+  resetMarkdownMathBudget();
   return DOMPurify.sanitize(rendered, activeSanitizeOptions);
 }
 

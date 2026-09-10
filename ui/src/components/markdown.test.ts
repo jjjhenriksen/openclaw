@@ -334,6 +334,24 @@ describe("toSanitizedMarkdownHtml", () => {
       expect(html).not.toContain("javascript:");
       expect(html).not.toContain("<a");
     });
+
+    it("preserves currency prose and display-math suffixes", () => {
+      const fragment = htmlFragment(
+        toSanitizedMarkdownHtml("Costs rose from $5 to $10. Result: $$x^2$$ and explanation."),
+      );
+
+      expect(fragment.textContent).toContain("Costs rose from $5 to $10.");
+      expect(fragment.textContent).toContain("and explanation.");
+      expect(fragment.querySelector(".katex-display")).not.toBeNull();
+    });
+
+    it("retains accessible MathML and KaTeX geometry", () => {
+      const fragment = htmlFragment(toSanitizedMarkdownHtml("$\\frac{1}{2}$"));
+
+      expect(fragment.querySelector("math")).not.toBeNull();
+      expect(fragment.querySelector(".katex-html[aria-hidden='true']")).not.toBeNull();
+      expect(fragment.querySelector(".strut[style]")).not.toBeNull();
+    });
   });
 
   describe("assistant transcript-role annotations", () => {
