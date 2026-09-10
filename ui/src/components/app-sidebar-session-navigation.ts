@@ -37,6 +37,7 @@ import {
   buildReconciledSidebarZone,
   buildSidebarSessionNavigationState,
   collectCategorizedChildRootRows,
+  collectPromotedPinnedDashboardChildRows,
   collectPromotedMainChildRows,
   collectSidebarSessionRowsByKey,
   compareSidebarSessionRowsByMode,
@@ -666,6 +667,18 @@ export class AppSidebarSessionNavigationElement extends AppSidebarBase {
     });
     scopedRootRows.push(...categorizedChildRows);
     const scopedRootKeys = new Set(scopedRootRows.map((row) => row.key));
+    const promotedPinnedDashboardRows = collectPromotedPinnedDashboardChildRows({
+      rows: sessionCandidateRows,
+      scopedRootKeys,
+      showCron: this.sessionsShowCron,
+      showSystem: this.sessionsShowSystem,
+    });
+    for (const row of promotedPinnedDashboardRows) {
+      if (!scopedRootKeys.has(row.key)) {
+        scopedRootKeys.add(row.key);
+        scopedRootRows.push(row);
+      }
+    }
     const promotedRows = collectPromotedMainChildRows({
       rows: sessionCandidateRows,
       mainSessionKeys,

@@ -210,7 +210,8 @@ suite.define(() => {
     }
   });
 
-  it("offers Pin session for a dashboard child", async () => {
+  it("pins a dashboard child into the global pinned shelf after refresh", async () => {
+    const parentKey = "agent:main:dashboard:parent";
     const childKey = "agent:main:dashboard:child";
     const context = await suite.browser.newContext({
       colorScheme: "dark",
@@ -219,13 +220,16 @@ suite.define(() => {
       viewport: { height: 900, width: 1280 },
     });
     const page = await context.newPage();
-    await installMockGateway(page, {
+    const gateway = await installMockGateway(page, {
       methodResponses: {
         "sessions.list": sessionsListResponse([
+          sessionRow(parentKey, "Dashboard parent", Date.parse("2026-07-01T16:01:00.000Z"), {
+            childSessions: [childKey],
+          }),
           sessionRow(childKey, "Dashboard task", Date.parse("2026-07-01T16:00:00.000Z"), {
             boardFace: "dashboard",
-            parentSessionKey: "agent:main:main",
-            spawnedBy: "agent:main:main",
+            parentSessionKey: parentKey,
+            spawnedBy: parentKey,
           }),
         ]),
         "sessions.patch": {},
@@ -245,6 +249,24 @@ suite.define(() => {
       await captureUiProof(suite, page, "dashboard-child-pin-menu.png", page.locator(".shell"), [
         menu,
       ]);
+      await page.getByRole("menuitem", { name: "Pin session" }).click();
+      await waitForPatch(gateway, (params) => params.key === childKey && params.pinned === true);
+      await gateway.emitGatewayEvent("sessions.changed", {
+        reason: "update",
+        sessionKey: childKey,
+      });
+      const pinnedEntry = page.locator(`[data-sidebar-entry="session:${childKey}"]`);
+      await expect
+        .poll(() => trimmedTextContents(pinnedEntry.locator(".sidebar-recent-session__name")))
+        .toEqual(["Dashboard task"]);
+      expect(await page.locator(`[data-session-key="${childKey}"]`).count()).toBe(1);
+      await captureUiProof(
+        suite,
+        page,
+        "dashboard-child-pinned-shelf.png",
+        page.locator(".shell"),
+        [pinnedEntry],
+      );
     } finally {
       await context.close();
     }

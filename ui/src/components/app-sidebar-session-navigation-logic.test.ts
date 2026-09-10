@@ -6,6 +6,7 @@ import { collectKnownSessionRows, fetchSessionLineage } from "./app-sidebar-chil
 import {
   buildSidebarSessionNavigationState,
   collectSidebarSessionRowsByKey,
+  collectPromotedPinnedDashboardChildRows,
   compareSidebarSessionRowsByMode,
   resolveSidebarMainSessionKey,
 } from "./app-sidebar-session-navigation-logic.ts";
@@ -473,6 +474,41 @@ describe("sidebar navigation lineage ownership", () => {
         isChild: false,
         children: [],
       },
+    ]);
+  });
+
+  it("promotes a pinned dashboard child to the global pinned shelf", () => {
+    const pinnedDashboardChild: GatewaySessionRow = {
+      ...child,
+      boardFace: "dashboard",
+      pinned: true,
+    };
+    const promoted = collectPromotedPinnedDashboardChildRows({
+      rows: [navigationParent, pinnedDashboardChild],
+      scopedRootKeys: new Set([navigationParent.key]),
+      showCron: false,
+      showSystem: false,
+    });
+    const projected = projectSessionTree({
+      roots: [navigationParent, ...promoted],
+      rowsByKey: collectSidebarSessionRowsByKey({
+        rows: [navigationParent, pinnedDashboardChild],
+        childRowsByParent: {},
+      }),
+      loadingChildKeys: new Set(),
+      knownSessionAttention: [],
+      toSidebarSession: (row, isChild) => ({
+        ...projectSidebarSession(row),
+        isChild: isChild === true,
+      }),
+    });
+
+    expect(promoted.map((row) => row.key)).toEqual([pinnedDashboardChild.key]);
+    expect(
+      projected.map((row) => [row.key, row.isChild, row.children.map((child) => child.key)]),
+    ).toEqual([
+      [navigationParent.key, false, []],
+      [pinnedDashboardChild.key, false, []],
     ]);
   });
 

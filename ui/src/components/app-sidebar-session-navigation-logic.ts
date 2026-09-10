@@ -444,6 +444,29 @@ export function collectPromotedMainChildRows(input: {
   });
 }
 
+/** Keep pinned dashboard children in the global pinned shelf instead of their
+ * lineage tree. They are user-facing destinations, unlike ordinary children.
+ */
+export function collectPromotedPinnedDashboardChildRows(input: {
+  rows: readonly GatewaySessionRow[];
+  scopedRootKeys: ReadonlySet<string>;
+  showCron: boolean;
+  showSystem: boolean;
+}): GatewaySessionRow[] {
+  return input.rows.filter((row) => {
+    const parentKey = resolveUiSessionNavigationParentKey(row);
+    return (
+      row.pinned === true &&
+      row.boardFace === "dashboard" &&
+      parentKey != null &&
+      !input.scopedRootKeys.has(row.key) &&
+      !row.archived &&
+      (input.showCron || !isCronSessionKey(row.key)) &&
+      (input.showSystem || !isSystemCreatedSessionRow(row))
+    );
+  });
+}
+
 export function collectCategorizedChildRootRows(input: {
   rows: readonly GatewaySessionRow[];
   scopedRoots: readonly GatewaySessionRow[];
