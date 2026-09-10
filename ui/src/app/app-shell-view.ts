@@ -69,6 +69,7 @@ import {
 } from "./settings.ts";
 import { renderCollapsedHomeToggle } from "./shell-assistant-toggles.ts";
 import { createUpdateProgressWatcher } from "./update-confirmation.ts";
+import { showToast } from "../lib/toast.ts";
 
 const EMPTY_SESSION_HAS_DRAFT = () => false;
 
@@ -293,7 +294,17 @@ export function renderApplicationShell(host: ShellViewHost) {
       onOpenPalette: () => host.openPalette(),
       onRetryConnect: () => context.gateway.connect(),
       onToggleSidebar: () => host.toggleNavigationSurface(),
-      onSelectGateway: (id: string) => selectAndConnectGateway(context.gateway, id),
+      onSelectGateway: (id: string) => {
+        try {
+          selectAndConnectGateway(context.gateway, id);
+        } catch (error) {
+          if (error instanceof Error && error.name === "GatewayRegistryPersistenceError") {
+            showToast({ message: t("connection.registry.persistence") });
+            return;
+          }
+          throw error;
+        }
+      },
       onManageGateways: () => host.navigate("connection"),
       onOpenNewSession: openNewSession,
       onUpdateSidebarEntries: (entries: string[]) =>
