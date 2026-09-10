@@ -310,6 +310,32 @@ describe("toSanitizedMarkdownHtml", () => {
     });
   });
 
+  describe("LaTeX", () => {
+    it("renders inline and display math with KaTeX", () => {
+      const fragment = htmlFragment(
+        toSanitizedMarkdownHtml("Inline $x^2$ and:\n\n$$\n\\frac{1}{2}\n$$"),
+      );
+
+      expect(fragment.querySelector(".katex")).not.toBeNull();
+      expect(fragment.querySelector(".katex-display")).not.toBeNull();
+      expect(fragment.textContent).toContain("x2");
+    });
+
+    it("keeps math-looking code literal", () => {
+      const fragment = htmlFragment(toSanitizedMarkdownHtml("`$x^2$` and `\\(y\\)`"));
+
+      expect(fragment.querySelectorAll(".katex")).toHaveLength(0);
+      expect(fragment.textContent?.trim()).toBe("$x^2$ and \\(y\\)");
+    });
+
+    it("does not allow KaTeX trust commands to create links", () => {
+      const html = toSanitizedMarkdownHtml("$\\href{javascript:alert(1)}{x}$");
+
+      expect(html).not.toContain("javascript:");
+      expect(html).not.toContain("<a");
+    });
+  });
+
   describe("assistant transcript-role annotations", () => {
     it("marks parsed role headers without exposing Markdown delimiters", () => {
       const fragment = htmlFragment(

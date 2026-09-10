@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import "katex/dist/katex.min.css";
 import { CONTROL_UI_ROOT_PUBLIC_ASSETS } from "../../../src/gateway/control-ui-root-assets.js";
 import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
 import { routeIdFromPath } from "../app-route-paths.ts";
