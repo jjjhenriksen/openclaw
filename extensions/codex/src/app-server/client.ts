@@ -750,6 +750,16 @@ export class CodexAppServerClient {
     return () => this.child.off?.("exit", onExit);
   }
 
+  /** Waits for physical transport exit after bounded cleanup has timed out. */
+  async waitForTransportExit(): Promise<void> {
+    if (this.transportExited) {
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      this.child.once("exit", () => resolve());
+    });
+  }
+
   /** Closes the transport without waiting for process/socket shutdown. */
   close(): void {
     if (!this.markClosed(new Error("codex app-server client is closed"))) {
