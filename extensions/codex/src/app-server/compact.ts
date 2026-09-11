@@ -913,17 +913,17 @@ async function compactCodexNativeThread(
             // its process and must release the writer before a later turn resumes.
             if (!boundClientLease && shouldReleaseDefaultLease) {
               temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
+              if (!temporaryClientExited && appServer.start.transport === "stdio") {
+                // Register the hold before any catch return can release the
+                // outer thread lane. Failure results must fence successors too.
+                hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
+              }
             }
           }
         }
         if (!temporaryClientExited) {
-          if (appServer.start.transport === "stdio") {
-            // A bounded shutdown result is not enough to release the native
-            // thread queue: a surviving temporary writer can still collide
-            // with the next turn. Keep this queued mutation occupied until
-            // the transport itself reports physical exit.
-            hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
-          }
+          // The cleanup finally registered the physical-exit hold before any
+          // failure return can release the outer thread lane.
           throw new CodexAppServerUnsafeSubscriptionError(
             `Codex compaction client did not exit: ${binding.threadId}`,
           );
