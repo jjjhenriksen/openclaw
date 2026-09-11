@@ -20,6 +20,7 @@ import {
 import { readSessionMethodAccess } from "../lib/session-method-access.ts";
 import { normalizeAgentId, resolveUiSelectedSessionAgentId } from "../lib/sessions/session-key.ts";
 import { isTerminalAvailable } from "../lib/terminal-availability.ts";
+import { showToast } from "../lib/toast.ts";
 import type { NewSessionTarget } from "../pages/new-session/location.ts";
 import { pluginTabKey, pluginTabRefFromSearch } from "../pages/plugin/route.ts";
 import { renderControlUiPluginRecovery } from "../plugins/control-ui-contributions.ts";
@@ -70,7 +71,6 @@ import {
 } from "./settings.ts";
 import { renderCollapsedAssistantToggles } from "./shell-assistant-toggles.ts";
 import { createUpdateProgressWatcher } from "./update-confirmation.ts";
-import { showToast } from "../lib/toast.ts";
 
 const EMPTY_SESSION_HAS_DRAFT = () => false;
 
@@ -281,7 +281,10 @@ export function renderApplicationShell(host: ShellViewHost) {
       lobsterPetVisits: uiSettings.lobsterPetVisits !== false,
       lobsterPetSounds: uiSettings.lobsterPetSounds === true,
       gatewayVersion: config.serverVersion ?? gatewaySnapshot.hello?.server?.version ?? null,
-      gatewayRegistry: loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
+      gatewayRegistry:
+        nativeEmbed || nativeWebChrome
+          ? undefined
+          : loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
       devGitBranch: config.devGitBranch,
       watchUpdateProgress,
       onOpenApprovals: () => host.openApprovals(),

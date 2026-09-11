@@ -323,6 +323,33 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(settings.token).toBe("gateway-a-token");
   });
 
+  it("upgrades origin-scoped legacy sessions and tokens for query gateways", () => {
+    setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
+    const target = "wss://gateway.example/rpc?account=team";
+    const originScope = "wss://gateway.example/rpc";
+    localStorage.setItem(
+      `openclaw.control.settings.v1:${originScope}`,
+      JSON.stringify({
+        gatewayUrl: target,
+        sessionsByGateway: {
+          [originScope]: {
+            sessionKey: "agent:team:main",
+            lastActiveSessionKey: "agent:team:main",
+            selectedAgentId: "Team Agent",
+          },
+        },
+      }),
+    );
+    sessionStorage.setItem(`openclaw.control.token.v1:${originScope}`, "team-token");
+
+    expect(loadGatewaySessionSelection(target)).toEqual({
+      sessionKey: "agent:team:main",
+      lastActiveSessionKey: "agent:team:main",
+      selectedAgentId: "team-agent",
+    });
+    expect(loadSettings(target).token).toBe("team-token");
+  });
+
   it("isolates saved settings and sessions for query-distinct gateways", () => {
     setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
     const personal = "wss://gateway.example/rpc?account=personal";

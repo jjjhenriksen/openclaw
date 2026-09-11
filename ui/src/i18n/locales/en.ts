@@ -3934,6 +3934,7 @@ export const en: TranslationMap & {
     registry: {
       switchTitle: "Switch gateway",
       manage: "Manage gateways",
+      persistence: "Gateway profile could not be saved. Check browser storage and try again.",
     },
     switchGateway: {
       title: "Switch to a different Gateway?",

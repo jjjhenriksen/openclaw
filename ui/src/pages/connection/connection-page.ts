@@ -7,7 +7,6 @@ import { state } from "lit/decorators.js";
 import type { SystemInfoResult } from "../../../../packages/gateway-protocol/src/index.js";
 import { subtitleForRoute, titleForRoute } from "../../app-navigation.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
-import { isNativeEmbedHost } from "../../app/native-web-chrome.ts";
 import {
   createGatewayProfile,
   loadGatewayRegistryForGateway,
@@ -18,6 +17,7 @@ import {
   GatewayRegistryPersistenceError,
   type GatewayRegistry,
 } from "../../app/gateway-registry.ts";
+import { isNativeEmbedHost, isNativeWebChromeHost } from "../../app/native-web-chrome.ts";
 import {
   loadGatewaySessionSelection,
   loadSettings,
@@ -289,7 +289,10 @@ export class ConnectionPage extends OpenClawLightDomElement {
     }
     const wasActive = this.gatewayRegistry.activeGatewayId === id;
     try {
-      this.gatewayRegistry = removeGatewayProfile(id);
+      removeGatewayProfile(id);
+      this.gatewayRegistry = loadGatewayRegistryForGateway(
+        this.context.gateway.connection.gatewayUrl,
+      );
     } catch (error) {
       if (error instanceof GatewayRegistryPersistenceError) {
         this.gatewayRegistryError = t("connection.registry.persistence");
@@ -354,7 +357,8 @@ export class ConnectionPage extends OpenClawLightDomElement {
     const body = renderConnection({
       connected: gateway.phase === "connected",
       hello: gateway.hello,
-      gatewayRegistry: isNativeEmbedHost() ? undefined : this.gatewayRegistry,
+      gatewayRegistry:
+        isNativeEmbedHost() || isNativeWebChromeHost() ? undefined : this.gatewayRegistry,
       newGatewayName: this.newGatewayName,
       newGatewayUrl: this.newGatewayUrl,
       gatewayRegistryError: this.gatewayRegistryError,

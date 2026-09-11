@@ -358,7 +358,10 @@ function resolveScopedSessionSelection(
   fallback: ScopedSessionSelection,
 ): ScopedSessionSelection {
   const scope = gatewayCredentialScope(gatewayUrl);
-  const scoped = parsed.sessionsByGateway?.[scope];
+  // Releases before query-aware scopes keyed this map by origin. Prefer the
+  // exact endpoint entry, then recover the ownership-compatible legacy entry.
+  const scoped =
+    parsed.sessionsByGateway?.[scope] ?? parsed.sessionsByGateway?.[gatewayOriginScope(gatewayUrl)];
   const scopedSessionKey = normalizeOptionalString(scoped?.sessionKey);
   const scopedLastActiveSessionKey = normalizeOptionalString(scoped?.lastActiveSessionKey);
   const scopedSelectedAgentId = normalizeOptionalString(scoped?.selectedAgentId);
@@ -409,14 +412,15 @@ function loadSessionToken(gatewayUrl: string): string {
     // Recover an old token only when the legacy settings record belongs to
     // this exact endpoint.
     const legacySettings = parsePersistedSettings(
-      storage.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`),
+      getSafeLocalStorage()?.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`) ??
+        null,
     );
     if (!legacySettings || !settingsMatchGatewayTarget(legacySettings, gatewayUrl)) {
       return "";
     }
-    return normalizeOptionalString(
-      storage.getItem(legacyTokenSessionKeyForGateway(gatewayUrl)),
-    ) ?? "";
+    return (
+      normalizeOptionalString(storage.getItem(legacyTokenSessionKeyForGateway(gatewayUrl))) ?? ""
+    );
   } catch {
     return "";
   }
