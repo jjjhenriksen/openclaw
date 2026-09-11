@@ -108,6 +108,9 @@ const CODEX_HARNESS_RESUME_STRESS_RESTARTS = resolveBoundedPositiveIntEnv(
   3,
   10,
 );
+const CODEX_HARNESS_EXPLICIT_COMPACT_PROBE = isTruthyEnvValue(
+  process.env.OPENCLAW_LIVE_CODEX_HARNESS_EXPLICIT_COMPACT_PROBE,
+);
 type CodexCompactionStressMode =
   | { kind: "off" }
   | { kind: "reduced" }
@@ -2780,6 +2783,62 @@ describeLive("gateway live (Codex harness)", () => {
               modelKey,
               sessionKey: resumeStressState.sessionKey,
             });
+            if (CODEX_HARNESS_EXPLICIT_COMPACT_PROBE && restart === 1) {
+              const explicitCompactText = await requestCodexCommandText({
+                client,
+                events: gatewayEvents,
+                sessionKey: resumeStressState.sessionKey,
+                command: "/codex compact",
+                expectedText: [],
+                isExpectedText: (text) => {
+                  const normalized = text.toLowerCase();
+                  return (
+                    normalized.includes("compact") &&
+                    !normalized.includes("did not complete") &&
+                    !normalized.includes("already has an active writer")
+                  );
+                },
+                predicateOnly: true,
+              });
+              logCodexLiveStep("explicit-compact-probe", {
+                text: explicitCompactText,
+                threadId: resumeStressState.threadId,
+              });
+              await client.stopAndWait();
+              client = undefined;
+              await instance.stopGateway();
+              gatewayEvents.length = 0;
+              await instance.startGateway();
+              client = await connectTestGatewayClient({
+                url: `ws://127.0.0.1:${port}`,
+                token,
+                deviceIdentity,
+                timeoutMs: GATEWAY_CONNECT_TIMEOUT_MS,
+                requestTimeoutMs: CODEX_HARNESS_REQUEST_TIMEOUT_MS,
+                clientDisplayName: "vitest-codex-explicit-compact-continuation",
+                caps: CODEX_HARNESS_CLIENT_CAPS,
+                onEvent: captureGatewayEvent,
+              });
+              activeApprovalClient = client;
+              await assertCodexHarnessSessionSelection({
+                client,
+                modelKey,
+                sessionKey: resumeStressState.sessionKey,
+              });
+              const continuationToken = `CODEX-EXPLICIT-COMPACT-CONTINUATION-${randomBytes(3)
+                .toString("hex")
+                .toUpperCase()}`;
+              const continuationText = await requestAgentText({
+                client,
+                sessionKey: resumeStressState.sessionKey,
+                expectedReply: continuationToken,
+                message: `Reply exactly ${continuationToken} and nothing else.`,
+              });
+              logCodexLiveStep("explicit-compact-continuation", {
+                text: continuationText,
+                threadId: resumeStressState.threadId,
+              });
+            }
             const nextMarker = `CODEX-RESTART-${restart}-${randomBytes(3)
               .toString("hex")
               .toUpperCase()}`;
