@@ -335,6 +335,20 @@ describe("toSanitizedMarkdownHtml", () => {
       expect(html).not.toContain("<a");
     });
 
+    it("preserves compact currency ranges and bare URL paths", () => {
+      const html = toSanitizedMarkdownHtml("Prices: $5-$10; docs: www.example.com/$schema$/docs");
+      expect(html).toContain("$5-$10");
+      expect(html).toContain("$schema$");
+      expect(html).not.toContain("katex");
+    });
+
+    it("escapes text when the math rendering budget is exhausted", () => {
+      const input = Array.from({ length: 201 }, (_, index) => `$x_${index}$`).join(" ");
+      const html = toSanitizedMarkdownHtml(`${input} $<img src=x onerror=alert(1)>$`);
+      expect(html).not.toContain("<img");
+      expect(html).toContain("&lt;img");
+    });
+
     it("preserves currency prose and display-math suffixes", () => {
       const fragment = htmlFragment(
         toSanitizedMarkdownHtml("Costs rose from $5 to $10. Result: $$x^2$$ and explanation."),
@@ -351,6 +365,18 @@ describe("toSanitizedMarkdownHtml", () => {
       expect(fragment.querySelector("math")).not.toBeNull();
       expect(fragment.querySelector(".katex-html[aria-hidden='true']")).not.toBeNull();
       expect(fragment.querySelector(".strut[style]")).not.toBeNull();
+    });
+
+    it("does not preserve authored progress styles", () => {
+      const fragment = htmlFragment(
+        toSanitizedMarkdownHtml(
+          '<progress value="1" max="2" style="position:fixed;inset:0"></progress>',
+          {
+            progressBars: true,
+          },
+        ),
+      );
+      expect(fragment.querySelector("progress")?.hasAttribute("style")).toBe(false);
     });
 
     it("supports math inside link labels during silent lookahead", () => {

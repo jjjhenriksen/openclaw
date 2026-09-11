@@ -298,21 +298,34 @@ function scanStableStreamingMarkdown(
 
 function getStreamingMathOpen(line: string): "$$" | "\\[" | null {
   const trimmed = line.trimStart();
-  if (trimmed.startsWith("$$") && !trimmed.slice(2).includes("$$")) {
+  if (trimmed.startsWith("$$") && findUnescapedStreamingDelimiter(trimmed.slice(2), "$$") < 0) {
     return "$$";
   }
-  if (trimmed.startsWith("\\[") && !trimmed.slice(2).includes("\\]")) {
+  if (trimmed.startsWith("\\[") && findUnescapedStreamingDelimiter(trimmed.slice(2), "\\]") < 0) {
     return "\\[";
   }
   return null;
 }
 
 function findStreamingMathClose(line: string, delimiter: "$$" | "\\["): boolean {
-  return line.includes(delimiter === "$$" ? "$$" : "\\]");
+  const close = delimiter === "$$" ? "$$" : "\\]";
+  return findUnescapedStreamingDelimiter(line, close) >= 0;
+}
+
+function findUnescapedStreamingDelimiter(line: string, delimiter: string): number {
+  for (let index = 0; index < line.length; index += 1) {
+    if (!line.startsWith(delimiter, index)) continue;
+    let slashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) slashes += 1;
+    if (slashes % 2 === 0) return index;
+  }
+  return -1;
 }
 
 function canResumeStreamingLine(line: string, fence: FenceMarker | null): boolean {
-  const first = stripMarkdownContainerPrefixes(line).content.charAt(0);
+  const content = stripMarkdownContainerPrefixes(line).content;
+  const first = content.charAt(0);
+  if (content.endsWith("$") || content.endsWith("\\")) return true;
   if (!first) {
     return false;
   }

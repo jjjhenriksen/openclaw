@@ -246,6 +246,18 @@ describe("toStreamingMarkdownParts", () => {
 
     expect(html).toBe("<p>prices are $$50 and</p>\n");
   });
+
+  it.each(["$", "\\\\"])("keeps a partial math opener resumable: %j", (suffix) => {
+    const source = `before\n\n$$x${suffix}`;
+    const split = splitStableStreamingMarkdown(source, `partial-math:${suffix}`);
+    expect(split.tailRepairStart).toBeNull();
+  });
+
+  it("does not close streaming display math on an escaped delimiter", () => {
+    const source = "$$x\\$$ still open";
+    const split = splitStableStreamingMarkdown(source);
+    expect(split.tailRepairStart).toBeNull();
+  });
 });
 
 describe("indented Markdown source", () => {

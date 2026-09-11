@@ -42,10 +42,13 @@ function renderMath(source: string, displayMode: boolean): string {
         .replace(/<annotation\b[^>]*>[\s\S]*?<\/annotation>/gu, "")
     );
   } catch {
-    // Keep malformed or unexpectedly expensive input visible as text. The
-    // renderer's normal HTML escaping and DOMPurify still protect the result.
+    // Keep malformed or unexpectedly expensive input visible as literal text.
     return "";
   }
+}
+
+function escapeMathFallback(source: string): string {
+  return source.replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;");
 }
 
 function findUnescaped(source: string, needle: string, start: number): number {
@@ -130,7 +133,11 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
   }
   if (
     delimiter.open === "$" &&
-    (/\s/u.test(source.charAt(contentStart)) || /\s/u.test(source.charAt(close - 1)))
+    (/\s/u.test(source.charAt(contentStart)) ||
+      /\s/u.test(source.charAt(close - 1)) ||
+      /^(?:-\$?\d|\d)/u.test(source.slice(close + delimiter.close.length)) ||
+      /(?:https?:\/\/|www\.)[^\s]*\/$/u.test(state.src.slice(0, state.pos)) ||
+      /\d-$/u.test(state.src.slice(0, state.pos)))
   ) {
     return false;
   }
@@ -153,7 +160,9 @@ export function installMarkdownMath(markdownParser: MarkdownIt) {
     const token = tokens[index];
     return token
       ? renderMath(token.content, Boolean(token.meta?.displayMode)) ||
-          (token.meta?.displayMode ? `$$${token.content}$$` : `$${token.content}$`)
+          (token.meta?.displayMode
+            ? `$$${escapeMathFallback(token.content)}$$`
+            : `$${escapeMathFallback(token.content)}$`)
       : "";
   };
   markdownParser.renderer.rules.math_block = (tokens, index) => {
@@ -161,6 +170,6 @@ export function installMarkdownMath(markdownParser: MarkdownIt) {
     if (!token) {
       return "";
     }
-    return renderMath(token.content, true) || `$$${token.content}$$`;
+    return renderMath(token.content, true) || `$$${escapeMathFallback(token.content)}$$`;
   };
 }
