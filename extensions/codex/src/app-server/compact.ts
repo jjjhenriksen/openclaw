@@ -901,7 +901,7 @@ async function compactCodexNativeThread(
             // Unsubscribe keeps the native thread loaded. A cold compaction owns
             // its process and must release the writer before a later turn resumes.
             if (!boundClientLease && shouldReleaseDefaultLease) {
-              temporaryClientExited = await client.closeAndWait();
+              temporaryClientExited = (await client.closeAndWait()).exited;
             }
           }
         }

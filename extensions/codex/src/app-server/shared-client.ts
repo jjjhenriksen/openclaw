@@ -1325,7 +1325,8 @@ export function retainSharedCodexAppServerClientByInstanceId(
     if (
       client.getInstanceId() !== normalizedClientId ||
       entry?.client !== client ||
-      entry.closeError
+      entry.closeError ||
+      client.getCloseError()
     ) {
       continue;
     }

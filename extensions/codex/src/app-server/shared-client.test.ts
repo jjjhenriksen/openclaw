@@ -605,6 +605,20 @@ describe("shared Codex app-server client", () => {
     expect(harness.process.stdin.destroyed).toBe(true);
   });
 
+  it("does not retain a client after close before transport exit", async () => {
+    const harness = createClientHarness();
+    vi.spyOn(CodexAppServerClient, "start").mockResolvedValue(harness.client);
+    const acquire = getLeasedSharedCodexAppServerClient({ timeoutMs: 1_000 });
+    await sendInitializeResult(harness, "openclaw/0.149.0 (Linux; test)");
+    const client = await acquire;
+    const clientId = client.getInstanceId();
+
+    client.close();
+
+    expect(client.getCloseError()).toBeDefined();
+    expect(retainSharedCodexAppServerClientByInstanceId(clientId)).toBeUndefined();
+  });
+
   it.each([
     {
       version: "2026.7.1",

@@ -165,7 +165,10 @@ it.each(["warm", "closed", "detached", "unconfirmed-close"])(
       });
       transports.push(harness);
       if (ownerState === "unconfirmed-close" && index === 1) {
-        vi.spyOn(harness.client, "closeAndWait").mockResolvedValueOnce(false);
+        vi.spyOn(harness.client, "closeAndWait").mockResolvedValueOnce({
+          exited: false,
+          cleanup: "uncertain",
+        });
       }
       return harness.client;
     });

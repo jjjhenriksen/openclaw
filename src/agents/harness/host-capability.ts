@@ -11,6 +11,7 @@ import { registerMcpToolApprovalBinding } from "../../infra/mcp-tool-approval-bi
 import { prepareSystemRunMutableFileApproval } from "../../infra/system-run-approval-binding.js";
 import { buildAgentHookContextChannelFields } from "../../plugins/hook-agent-context.js";
 import {
+  getGatewayContextResolver,
   getPluginRuntimeGatewayRequestScope,
   withPluginRuntimeGatewayRequestScope,
 } from "../../plugins/runtime/gateway-request-scope.js";
@@ -226,7 +227,10 @@ export function createAgentHarnessHostCapabilities(params: {
     return new Error(message);
   };
   // Only a Gateway captured at admission participates in host liveness.
-  const hasBoundGatewayContext = callerIdentity?.gatewayContextResolver?.() !== undefined;
+  // A supplied resolver that currently returns no context is a retired binding;
+  // only a genuinely absent resolver is exempt from the Gateway liveness fence.
+  const hasBoundGatewayContext =
+    getGatewayContextResolver(attempt.admittedRunContext) !== undefined;
   function assertActive() {
     if (
       !active ||

@@ -21,7 +21,7 @@ import { consumeChannelRunAdmission, prepareChannelRunAdmission } from "./channe
 const identityConfig = { logging: { audit: { executionIdentity: true } } } as const;
 
 describe("channel run admission", () => {
-  it("keeps host authority active when its optional Gateway context is unavailable", async () => {
+  it("rejects a retired Gateway binding before host tool I/O", async () => {
     const current: { value?: GatewayRequestContext } = {};
     const prepared = prepareChannelRunAdmission({
       cfg: {},
@@ -48,12 +48,46 @@ describe("channel run admission", () => {
     });
 
     try {
-      expect(() => host.capabilities.preparedEnvironment?.()).not.toThrow();
+      expect(() => host.capabilities.preparedEnvironment?.()).toThrow("no longer active");
       current.value = {} as GatewayRequestContext;
-      expect(() => host.capabilities.assertActive()).not.toThrow();
+      expect(() => host.capabilities.assertActive()).toThrow("no longer active");
       await host.runWithScope(async () => {
         expect(getGatewayToolCallerIdentity()?.gatewayContextResolver?.()).toBeUndefined();
+        expect(() => host.capabilities.preparedEnvironment?.()).toThrow("no longer active");
       });
+    } finally {
+      host.close();
+      prepared.close();
+      resetAgentRunRegistryForTest();
+    }
+  });
+
+  it("keeps an unbound run usable without Gateway context", async () => {
+    const prepared = prepareChannelRunAdmission({
+      cfg: {},
+      runId: "run-without-gateway-binding",
+      agentId: "main",
+      ingressKind: "channel",
+      boundary: "channel/auto-reply",
+    });
+    const admittedRunContext = await prepared.admit("plugin-harness", "channel-harness");
+    const host = createAgentHarnessHostCapabilities({
+      attempt: {
+        agentId: "main",
+        sessionId: "session-1",
+        sessionKey: "agent:main:session-1",
+        runId: "run-without-gateway-binding",
+        cwd: "/attempt/worktree",
+        workspaceDir: "/workspace",
+        currentChannelId: "chat-1",
+        messageChannel: "whatsapp",
+        admittedRunContext,
+      },
+      pluginId: "codex",
+    });
+
+    try {
+      expect(() => host.capabilities.preparedEnvironment?.()).not.toThrow();
     } finally {
       host.close();
       prepared.close();
