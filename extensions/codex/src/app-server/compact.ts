@@ -55,7 +55,7 @@ import {
 } from "./shared-client.js";
 import {
   isSameCodexAppServerThreadOwner,
-  withCodexAppServerThreadMutation,
+  withCodexAppServerThreadMutationHold,
 } from "./thread-ownership.js";
 import { assertCodexSupervisionThreadLineage } from "./thread-policy.js";
 import { resumeCodexAppServerThread } from "./thread-resume.js";
@@ -326,14 +326,14 @@ function watchCodexNativeCompactionCompletion(params: {
 async function runExclusiveCodexNativeCompaction<T>(
   threadId: string,
   signal: AbortSignal | undefined,
-  run: () => Promise<T>,
+  run: (hold: (until: Promise<unknown>) => void) => Promise<T>,
 ): Promise<T> {
   signal?.throwIfAborted();
   let started = false;
-  const queued = withCodexAppServerThreadMutation(threadId, async () => {
+  const queued = withCodexAppServerThreadMutationHold(threadId, async (hold) => {
     started = true;
     signal?.throwIfAborted();
-    return run();
+    return run(hold);
   });
   if (!signal) {
     return queued;
@@ -581,7 +581,7 @@ async function compactCodexNativeThread(
     return await runExclusiveCodexNativeCompaction(
       binding.threadId,
       params.abortSignal,
-      async () => {
+      async (hold) => {
         assertCurrent();
         const boundClientLease = retainSharedCodexAppServerClientByInstanceId(binding.clientId);
         const client =
@@ -922,7 +922,7 @@ async function compactCodexNativeThread(
             // thread queue: a surviving temporary writer can still collide
             // with the next turn. Keep this queued mutation occupied until
             // the transport itself reports physical exit.
-            await waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited);
+            hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
           }
           throw new CodexAppServerUnsafeSubscriptionError(
             `Codex compaction client did not exit: ${binding.threadId}`,
