@@ -722,14 +722,16 @@ export async function maybeCompactCodexAppServerSession(
                 // its process and must release the writer before a later turn resumes.
                 if (!boundClientLease && shouldReleaseDefaultLease) {
                   temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
+                  if (!temporaryClientExited && appServer.start.transport === "stdio") {
+                    // Register the hold before failure results release the thread lane.
+                    hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
+                  }
                 }
               }
             }
           }
           if (!temporaryClientExited) {
-            if (appServer.start.transport === "stdio") {
-              hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
-            }
+            // Cleanup registered the physical-exit hold before failure returns.
             throw new CodexAppServerUnsafeSubscriptionError(
               `Codex compaction client did not exit: ${binding.threadId}`,
             );
