@@ -241,6 +241,7 @@ export class CodexAppServerClient {
   private modelCatalogRevision = 0;
   private closed = false;
   private transportExited = false;
+  private readonly transportExit: Promise<void>;
   private nativeExecutionObserved = false;
   private closeError: Error | undefined;
   private serverVersion: string | undefined;
@@ -260,6 +261,9 @@ export class CodexAppServerClient {
 
   private constructor(child: CodexAppServerTransport) {
     this.child = child;
+    this.transportExit = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+    });
     this.closeMessageReader = listenCodexAppServerLines(
       child.stdout,
       (line) => {
@@ -791,9 +795,7 @@ export class CodexAppServerClient {
     if (this.transportExited) {
       return;
     }
-    await new Promise<void>((resolve) => {
-      this.child.once("exit", () => resolve());
-    });
+    await this.transportExit;
   }
 
   /** Closes the transport without waiting for process/socket shutdown. */
