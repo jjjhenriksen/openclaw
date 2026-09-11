@@ -20,6 +20,7 @@ import {
 import { readSessionMethodAccess } from "../lib/session-method-access.ts";
 import { normalizeAgentId, resolveUiSelectedSessionAgentId } from "../lib/sessions/session-key.ts";
 import { isTerminalAvailable } from "../lib/terminal-availability.ts";
+import { showToast } from "../lib/toast.ts";
 import type { NewSessionTarget } from "../pages/new-session/location.ts";
 import { pluginTabKey, pluginTabRefFromSearch } from "../pages/plugin/route.ts";
 import { renderPluginSurface } from "../plugins/control-ui-view.ts";
@@ -69,7 +70,6 @@ import {
 } from "./settings.ts";
 import { renderCollapsedHomeToggle } from "./shell-assistant-toggles.ts";
 import { createUpdateProgressWatcher } from "./update-confirmation.ts";
-import { showToast } from "../lib/toast.ts";
 
 const EMPTY_SESSION_HAS_DRAFT = () => false;
 
@@ -287,7 +287,10 @@ export function renderApplicationShell(host: ShellViewHost) {
       pinnedAgentIds: navigationSnapshot.pinnedAgentIds,
       themeMode: context.theme.mode,
       gatewayVersion: config.serverVersion ?? gatewaySnapshot.hello?.server?.version ?? null,
-      gatewayRegistry: loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
+      gatewayRegistry:
+        nativeEmbed || nativeWebChrome
+          ? undefined
+          : loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
       devGitBranch: config.devGitBranch,
       watchUpdateProgress,
       onOpenApprovals: () => host.openApprovals(),
