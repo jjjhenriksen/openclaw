@@ -12,7 +12,7 @@ import {
   readCodexNotificationTurnId,
 } from "./notification-correlation.js";
 import { isJsonObject } from "./protocol.js";
-import { withCodexAppServerThreadMutation } from "./thread-ownership.js";
+import { withCodexAppServerThreadMutationHold } from "./thread-ownership.js";
 
 type CodexNativeCompactionCompletion =
   | { completed: true; turnId?: string; itemId?: string; tokensAfter?: number }
@@ -264,15 +264,15 @@ export function watchCodexNativeCompactionCompletion(params: {
 export async function runExclusiveCodexNativeCompaction<T>(
   threadId: string,
   signal: AbortSignal | undefined,
-  run: () => Promise<T>,
+  run: (hold: (until: Promise<unknown>) => void) => Promise<T>,
 ): Promise<T> {
   return await runWithAsyncWorkResources(async (onAcquired) => {
     signal?.throwIfAborted();
     let started = false;
-    const queued = withCodexAppServerThreadMutation(threadId, async () => {
+    const queued = withCodexAppServerThreadMutationHold(threadId, async (hold) => {
       started = true;
       signal?.throwIfAborted();
-      return run();
+      return run(hold);
     });
     onAcquired({
       release: async () => {

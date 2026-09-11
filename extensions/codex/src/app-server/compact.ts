@@ -307,7 +307,7 @@ export async function maybeCompactCodexAppServerSession(
       return await runExclusiveCodexNativeCompaction(
         binding.threadId,
         attempt.abortSignal,
-        async () => {
+        async (hold) => {
           assertAdmissionCurrent();
           const boundClientLease = retainSharedCodexAppServerClientByInstanceId(binding.clientId);
           const client = boundClientLease?.client ?? (await clientFactory({
@@ -728,7 +728,7 @@ export async function maybeCompactCodexAppServerSession(
           }
           if (!temporaryClientExited) {
             if (appServer.start.transport === "stdio") {
-              await waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited);
+              hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
             }
             throw new CodexAppServerUnsafeSubscriptionError(
               `Codex compaction client did not exit: ${binding.threadId}`,
