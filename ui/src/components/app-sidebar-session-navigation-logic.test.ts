@@ -517,7 +517,7 @@ describe("sidebar navigation lineage ownership", () => {
 
     expect(promoted.map((row) => row.key)).toEqual([pinnedDashboardChild.key]);
     expect(
-      projected.map((row) => [row.key, row.isChild, row.children.map((child) => child.key)]),
+      projected.map((row) => [row.key, row.isChild, row.children.map((entry) => entry.key)]),
     ).toEqual([
       [navigationParent.key, false, []],
       [pinnedDashboardChild.key, false, []],
