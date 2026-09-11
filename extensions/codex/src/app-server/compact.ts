@@ -28,6 +28,7 @@ import {
 import type { CodexAppServerLiveThreadOwnership } from "./client-thread-owner.js";
 import {
   CodexAppServerRpcError,
+  type CodexAppServerClient,
   isCodexAppServerIndeterminateRequestCancellationError,
   isCodexAppServerPrewriteRequestCancellationError,
 } from "./client.js";
@@ -80,6 +81,16 @@ type CodexAppServerCompactOptions = {
   nativeCompletionTimeoutMs?: number;
   nativeInterruptGraceMs?: number;
 };
+
+/** Keeps same-thread ownership held when bounded temporary cleanup is uncertain. */
+export async function waitForCodexAppServerTemporaryClientExit(
+  client: Pick<CodexAppServerClient, "waitForTransportExit">,
+  exited: boolean,
+): Promise<void> {
+  if (!exited) {
+    await client.waitForTransportExit();
+  }
+}
 
 function warnIfIgnoringOpenClawCompactionOverrides(
   params: CompactEmbeddedAgentSessionParams,
@@ -368,6 +379,7 @@ export async function maybeCompactCodexAppServerSession(
                 exitTimeoutMs: 5_000,
                 forceKillDelayMs: 250,
               });
+            temporaryClientExited = transportStopped.exited;
               if (appServer.start.transport === "stdio") {
                 if (transportStopped.exited) {
                   return;
@@ -709,12 +721,15 @@ export async function maybeCompactCodexAppServerSession(
                 // Unsubscribe keeps the native thread loaded. A cold compaction owns
                 // its process and must release the writer before a later turn resumes.
                 if (!boundClientLease && shouldReleaseDefaultLease) {
-                  temporaryClientExited = (await client.closeAndWait()).exited;
+                  temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
                 }
               }
             }
           }
           if (!temporaryClientExited) {
+            if (appServer.start.transport === "stdio") {
+              await waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited);
+            }
             throw new CodexAppServerUnsafeSubscriptionError(
               `Codex compaction client did not exit: ${binding.threadId}`,
             );

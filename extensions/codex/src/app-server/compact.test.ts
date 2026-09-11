@@ -14,6 +14,7 @@ import {
   retainCodexAppServerLiveThread,
 } from "./client-runtime.js";
 import { CodexAppServerRpcError } from "./client.js";
+import { waitForCodexAppServerTemporaryClientExit } from "./compact.js";
 import {
   beginCompactionTestCleanup,
   compactCodexSessionWithTestHost as maybeCompactCodexAppServerSessionImpl,
@@ -65,16 +66,21 @@ function startCompaction(
   options: {
     currentTokenCount?: number;
     nativeToolSurface?: "unrestricted" | "host-isolated";
+    pluginConfig?: unknown;
   } = {},
 ) {
-  return maybeCompactCodexAppServerSession({
-    sessionId: "session-1",
-    sessionKey: "agent:main:session-1",
-    sessionFile,
-    workspaceDir: tempDir,
-    trigger: "manual",
-    ...options,
-  });
+  const { pluginConfig, ...paramsOptions } = options;
+  return maybeCompactCodexAppServerSession(
+    {
+      sessionId: "session-1",
+      sessionKey: "agent:main:session-1",
+      sessionFile,
+      workspaceDir: tempDir,
+      trigger: "manual",
+      ...paramsOptions,
+    },
+    pluginConfig ? { pluginConfig } : {},
+  );
 }
 
 describe("maybeCompactCodexAppServerSession", () => {
@@ -2314,38 +2320,30 @@ describe("maybeCompactCodexAppServerSession", () => {
   });
 
   it("keeps the lifecycle fence when an unconfirmed stdio process does not stop", async () => {
-    const fake = createFakeCodexClient({ retainedThreadId: "thread-stuck-stdio" });
-    fake.request.mockRejectedValueOnce(new Error("thread/compact/start timed out"));
+    const fake = createFakeCodexClient({ retainedThreadId: null });
     fake.closeAndWait.mockResolvedValueOnce({ exited: false, cleanup: "uncertain" });
-    setCodexAppServerClientFactoryForTest(async () => fake.client);
-    const sessionFile = await writeTestBinding({ threadId: "thread-stuck-stdio" });
+    const pending = withCodexAppServerThreadMutation("thread-stuck-stdio", async () => {
+      const closeResult = await fake.closeAndWait();
+      await waitForCodexAppServerTemporaryClientExit(fake.client, closeResult.exited);
+      throw new Error("temporary writer did not exit");
+    });
+    const nextMutation = vi.fn(async () => {});
+    const queued = withCodexAppServerThreadMutation("thread-stuck-stdio", nextMutation);
 
-    const pendingResult = startCompaction(sessionFile);
     const outcome = await Promise.race([
-      pendingResult.then(() => "settled" as const),
+      pending.then(() => "settled" as const),
       new Promise<"pending">((resolve) => {
         setTimeout(() => resolve("pending"), 20);
       }),
     ]);
 
     expect(outcome).toBe("pending");
-    expect(fake.closeAndWait).toHaveBeenCalledOnce();
-    await expect(readCodexAppServerBinding(sessionFile)).resolves.toBeDefined();
-    fake.emit({
-      method: "turn/started",
-      params: {
-        threadId: "thread-stuck-stdio",
-        turn: { id: "stdio-terminal", status: "inProgress" },
-      },
-    });
-    fake.emit({
-      method: "turn/completed",
-      params: {
-        threadId: "thread-stuck-stdio",
-        turn: { id: "stdio-terminal", status: "interrupted", items: [] },
-      },
-    });
-    await expect(pendingResult).resolves.toMatchObject({ ok: false, compacted: false });
+    expect(nextMutation).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(fake.waitForTransportExit).toHaveBeenCalledOnce());
+    fake.emitTransportExit();
+    await expect(pending).rejects.toThrow("temporary writer did not exit");
+    await queued;
+    expect(nextMutation).toHaveBeenCalledOnce();
   });
 
   it("detaches a guarded remote start after releasing the binding lock", async () => {

@@ -1,3 +1,4 @@
+import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { runWithAsyncWorkResources } from "openclaw/plugin-sdk/agent-harness-tool-runtime";
@@ -324,11 +325,14 @@ export function createFakeCodexCompactionClient(
   request: ReturnType<typeof vi.fn<CodexAppServerClient["request"]>>;
   close: ReturnType<typeof vi.fn>;
   closeAndWait: ReturnType<typeof vi.fn<CodexAppServerClient["closeAndWait"]>>;
+  waitForTransportExit: ReturnType<typeof vi.fn<CodexAppServerClient["waitForTransportExit"]>>;
+  emitTransportExit: () => void;
   emit: (notification: CodexServerNotification) => void;
   completeCompaction: () => void;
 } {
   const handlers = new Set<(notification: CodexServerNotification) => void>();
   const closeHandlers = new Set<() => void>();
+  const transportExit = createDeferred<void>();
   const retainedThreadId =
     options.retainedThreadId === undefined ? "thread-1" : options.retainedThreadId;
   const subscribedThreadIds = new Set(
@@ -505,6 +509,8 @@ export function createFakeCodexCompactionClient(
       handler();
     }
   });
+  const emitTransportExit = () => transportExit.resolve();
+  const waitForTransportExit = vi.fn(async () => { await transportExit.promise; });
   const closeAndWait = vi.fn<CodexAppServerClient["closeAndWait"]>(async () => {
     close();
     return { exited: true, cleanup: "closed" };
@@ -553,6 +559,8 @@ export function createFakeCodexCompactionClient(
     getTransportPid: () => undefined,
     close,
     closeAndWait,
+    waitForTransportExit,
+    addTransportExitHandler: vi.fn((handler: () => void) => { void transportExit.promise.then(handler); return () => undefined; }),
     addNotificationHandler,
     addRequestHandler: vi.fn(() => () => undefined),
     addCloseHandler: vi.fn((handler: () => void) => {
@@ -575,6 +583,8 @@ export function createFakeCodexCompactionClient(
     request,
     close,
     closeAndWait,
+    waitForTransportExit,
+    emitTransportExit,
     emit,
     completeCompaction,
   };
