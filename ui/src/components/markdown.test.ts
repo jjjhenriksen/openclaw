@@ -336,7 +336,9 @@ describe("toSanitizedMarkdownHtml", () => {
     });
 
     it("preserves compact currency ranges and bare URL paths", () => {
-      const html = toSanitizedMarkdownHtml("Prices: $5-$10; docs: www.example.com/$schema$/docs");
+      const html = toSanitizedMarkdownHtml(
+        "Prices: $5-$10; docs: https://example.com/$schema$/query?$x$=1 and www.example.com/$path$/$next$/docs",
+      );
       expect(html).toContain("$5-$10");
       expect(html).toContain("$schema$");
       expect(html).not.toContain("katex");

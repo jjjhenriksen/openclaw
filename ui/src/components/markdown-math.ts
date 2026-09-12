@@ -15,6 +15,7 @@ const INLINE_DELIMITERS = [
 const MAX_MATH_SCAN = 4096;
 const MAX_MATH_EXPRESSIONS = 200;
 let renderedMathExpressions = 0;
+const BARE_URL_START_RE = /(?:https?:\/\/|www\.)/giu;
 
 export function resetMarkdownMathBudget() {
   renderedMathExpressions = 0;
@@ -66,6 +67,22 @@ function findUnescaped(source: string, needle: string, start: number): number {
     }
   }
   return -1;
+}
+
+function isInsideBareUrl(source: string, position: number): boolean {
+  BARE_URL_START_RE.lastIndex = 0;
+  for (const match of source.matchAll(BARE_URL_START_RE)) {
+    const start = match.index ?? -1;
+    if (start < 0 || start > position) {
+      continue;
+    }
+    const end = source.slice(start).search(/[\s<]/u);
+    const urlEnd = end < 0 ? source.length : start + end;
+    if (position < urlEnd) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function parseDisplayMath(state: StateBlock, startLine: number, endLine: number, silent: boolean) {
@@ -126,6 +143,9 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
   if (!delimiter) {
     return false;
   }
+  if (isInsideBareUrl(state.src, state.pos)) {
+    return false;
+  }
   const contentStart = delimiter.open.length;
   const close = findUnescaped(source, delimiter.close, contentStart);
   if (close <= contentStart) {
@@ -136,7 +156,7 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
     (/\s/u.test(source.charAt(contentStart)) ||
       /\s/u.test(source.charAt(close - 1)) ||
       /^(?:-\$?\d|\d)/u.test(source.slice(close + delimiter.close.length)) ||
-      /(?:https?:\/\/|www\.)[^\s]*\/$/u.test(state.src.slice(0, state.pos)) ||
+      isInsideBareUrl(state.src, state.pos) ||
       /\d-$/u.test(state.src.slice(0, state.pos)))
   ) {
     return false;

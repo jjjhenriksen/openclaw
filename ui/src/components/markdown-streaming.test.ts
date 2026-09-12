@@ -258,6 +258,17 @@ describe("toStreamingMarkdownParts", () => {
     const split = splitStableStreamingMarkdown(source);
     expect(split.tailRepairStart).toBeNull();
   });
+
+  it("does not cache past an incomplete inline-math line", () => {
+    const partial = "before\n\nexplanation $x";
+    const completed = `${partial}$`;
+    const key = "partial-inline-math-line";
+
+    splitStableStreamingMarkdown(partial, key);
+    expect(toStreamingMarkdownParts(completed, {}, key).join("")).toBe(
+      toStreamingMarkdownParts(completed).join(""),
+    );
+  });
 });
 
 describe("indented Markdown source", () => {

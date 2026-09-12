@@ -138,6 +138,39 @@ function findStreamingCodeSpans(markdown: string, start: number): Array<[number,
   ]);
 }
 
+function hasIncompleteStreamingInlineMath(line: string): boolean {
+  const codeSpans = findMarkdownCodeSpans(line);
+  const isCode = (index: number) => codeSpans.some(([from, to]) => index >= from && index < to);
+  let dollarCount = 0;
+  for (let index = 0; index < line.length; index += 1) {
+    if (isCode(index)) {
+      continue;
+    }
+    if (line.startsWith("\\(", index)) {
+      const close = line.indexOf("\\)", index + 2);
+      if (close < 0) {
+        return true;
+      }
+      index = close + 1;
+      continue;
+    }
+    if (line[index] !== "$") {
+      continue;
+    }
+    let backslashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) {
+      backslashes += 1;
+    }
+    if (backslashes % 2 === 0) {
+      dollarCount += line.startsWith("$$", index) ? 2 : 1;
+      if (line.startsWith("$$", index)) {
+        index += 1;
+      }
+    }
+  }
+  return dollarCount % 2 !== 0;
+}
+
 function scanStableStreamingMarkdown(
   markdownLocal: string,
   cursor: StreamingMarkdownCursor = {
@@ -246,21 +279,26 @@ function scanStableStreamingMarkdown(
       }
     }
     index = lineEnd;
+    const incompleteInlineMath = !openFence && !openMath && hasIncompleteStreamingInlineMath(line);
     if (
       detailsStack.length === 0 &&
       (nextLineBreak !== -1 || canResumeStreamingLine(line, lineFence))
     ) {
       lineMode = nextLineBreak === -1 ? (lineFence ? "fence" : "plain") : null;
-      resumeCursor = {
-        boundary,
-        firstListOffset,
-        hasLinkReferenceDefinition,
-        index,
-        lastFenceOffset,
-        lineMode,
-        openFence,
-        openMath,
-      };
+      // Do not cache a cursor past an unfinished inline expression. The next
+      // chunk must rescan this line so a newly arrived closer can be paired.
+      if (!incompleteInlineMath) {
+        resumeCursor = {
+          boundary,
+          firstListOffset,
+          hasLinkReferenceDefinition,
+          index,
+          lastFenceOffset,
+          lineMode,
+          openFence,
+          openMath,
+        };
+      }
     }
   }
 
@@ -314,10 +352,16 @@ function findStreamingMathClose(line: string, delimiter: "$$" | "\\["): boolean 
 
 function findUnescapedStreamingDelimiter(line: string, delimiter: string): number {
   for (let index = 0; index < line.length; index += 1) {
-    if (!line.startsWith(delimiter, index)) continue;
+    if (!line.startsWith(delimiter, index)) {
+      continue;
+    }
     let slashes = 0;
-    for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) slashes += 1;
-    if (slashes % 2 === 0) return index;
+    for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) {
+      slashes += 1;
+    }
+    if (slashes % 2 === 0) {
+      return index;
+    }
   }
   return -1;
 }
@@ -325,7 +369,9 @@ function findUnescapedStreamingDelimiter(line: string, delimiter: string): numbe
 function canResumeStreamingLine(line: string, fence: FenceMarker | null): boolean {
   const content = stripMarkdownContainerPrefixes(line).content;
   const first = content.charAt(0);
-  if (content.endsWith("$") || content.endsWith("\\")) return true;
+  if (content.endsWith("$") || content.endsWith("\\")) {
+    return true;
+  }
   if (!first) {
     return false;
   }
