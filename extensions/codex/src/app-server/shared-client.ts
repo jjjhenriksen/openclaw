@@ -1327,7 +1327,7 @@ export function retainSharedCodexAppServerClientIfCurrent(
 /** Retains the live shared client whose initialized instance id matches a thread binding. */
 export function retainSharedCodexAppServerClientByInstanceId(
   clientId: string | undefined,
-): { client: CodexAppServerClient; release: () => void } | undefined {
+): { client: CodexAppServerClient; release: () => boolean } | undefined {
   const normalizedClientId = clientId?.trim();
   if (!normalizedClientId) {
     return undefined;
@@ -1558,7 +1558,7 @@ function retainSharedClientEntry(
   entry[counter] += 1;
   return () => {
     if (released) {
-      return;
+      return false;
     }
     released = true;
     return releaseSharedClientEntry(entry, counter);
