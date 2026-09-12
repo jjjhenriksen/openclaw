@@ -464,6 +464,25 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  it("clears an owned migrated origin token without affecting a query neighbor", () => {
+    setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
+    const personal = "wss://gateway.example/rpc?account=personal";
+    const team = "wss://gateway.example/rpc?account=team";
+    const origin = "wss://gateway.example/rpc";
+    localStorage.setItem(
+      `openclaw.control.settings.v1:${origin}`,
+      JSON.stringify({ gatewayUrl: personal }),
+    );
+    sessionStorage.setItem(`openclaw.control.token.v1:${origin}`, "legacy-personal-token");
+
+    expect(loadSettings(personal).token).toBe("legacy-personal-token");
+    persistSessionToken(personal, "");
+
+    expect(loadSettings(personal).token).toBe("");
+    expect(loadSettings(team).token).toBe("");
+    expect(sessionStorage.getItem(`openclaw.control.token.v1:${origin}`)).toBeNull();
+  });
+
   it("scopes persisted session selection per gateway", () => {
     setTestLocation({
       protocol: "https:",

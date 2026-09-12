@@ -468,6 +468,10 @@ export function persistSessionToken(gatewayUrl: string, token: string) {
     const normalized = normalizeOptionalString(token) ?? "";
     if (normalized) {
       storage.setItem(key, normalized);
+      // A successful token-mode hello completes migration from the old
+      // origin-scoped slot. Retire it only when its legacy settings record
+      // proves ownership of this exact query-aware endpoint.
+      removeLegacyTokenIfOwned(gatewayUrl, storage);
       return;
     }
     storage.removeItem(key);
