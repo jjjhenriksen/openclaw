@@ -596,6 +596,11 @@ async function compactCodexNativeThread(
             config: params.config,
             assertCurrent,
           }));
+        embeddedAgentLog.info("selected codex app-server compaction client", {
+          clientId: client.getInstanceId(),
+          recordedOwnerReused: Boolean(boundClientLease),
+          threadId: binding.threadId,
+        });
         let releaseThreadSubscription: (() => Promise<void>) | undefined;
         let retainedThreadOwnership: CodexAppServerLiveThreadOwnership | undefined;
         let compactionSucceeded = false;
@@ -916,6 +921,10 @@ async function compactCodexNativeThread(
               // shutdown of a detached recorded owner. Keep the same-thread
               // lane fenced until that process has actually exited.
               hold(waitForCodexAppServerTemporaryClientExit(client, false));
+              embeddedAgentLog.info("fenced recorded-owner compaction client until process exit", {
+                clientId: client.getInstanceId(),
+                threadId: binding.threadId,
+              });
             } else if (!boundClientLease && shouldReleaseDefaultLease) {
               temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
               if (!temporaryClientExited && appServer.start.transport === "stdio") {
