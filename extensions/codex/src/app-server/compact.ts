@@ -908,10 +908,15 @@ async function compactCodexNativeThread(
               await releaseThreadSubscription?.();
             }
           } finally {
-            boundClientLease?.release();
+            const boundClientClosed = boundClientLease?.release() ?? false;
             // Unsubscribe keeps the native thread loaded. A cold compaction owns
             // its process and must release the writer before a later turn resumes.
-            if (!boundClientLease && shouldReleaseDefaultLease) {
+            if (boundClientClosed && appServer.start.transport === "stdio") {
+              // Releasing the final lease can initiate asynchronous physical
+              // shutdown of a detached recorded owner. Keep the same-thread
+              // lane fenced until that process has actually exited.
+              hold(waitForCodexAppServerTemporaryClientExit(client, false));
+            } else if (!boundClientLease && shouldReleaseDefaultLease) {
               temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
               if (!temporaryClientExited && appServer.start.transport === "stdio") {
                 // Register the hold before any catch return can release the
