@@ -283,7 +283,7 @@ export function renderApplicationShell(host: ShellViewHost) {
       gatewayVersion: config.serverVersion ?? gatewaySnapshot.hello?.server?.version ?? null,
       gatewayRegistry:
         nativeEmbed || nativeWebChrome
-          ? undefined
+          ? { gateways: [], activeGatewayId: null }
           : loadGatewayRegistryForGateway(context.gateway.connection.gatewayUrl),
       devGitBranch: config.devGitBranch,
       watchUpdateProgress,

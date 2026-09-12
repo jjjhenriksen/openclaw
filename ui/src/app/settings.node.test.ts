@@ -1,3 +1,4 @@
+import { gatewayOriginScope } from "@openclaw/gateway-client/browser";
 // @vitest-environment node
 // Gateway URL derivation, tab-local token handling, and per-gateway session
 // scoping. Preference and layout persistence live in the dotted sibling files
@@ -348,6 +349,37 @@ describe("loadSettings default gateway URL derivation", () => {
       selectedAgentId: "team-agent",
     });
     expect(loadSettings(target).token).toBe("team-token");
+  });
+
+  it("retires an owned legacy token when a migrated query gateway is cleared", () => {
+    setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
+    const target = "wss://gateway.example/rpc?account=team";
+    const originScope = "wss://gateway.example/rpc";
+    localStorage.setItem(
+      `openclaw.control.settings.v1:${originScope}`,
+      JSON.stringify({ gatewayUrl: target }),
+    );
+    sessionStorage.setItem(`openclaw.control.token.v1:${originScope}`, "legacy-team-token");
+
+    expect(loadSettings(target).token).toBe("legacy-team-token");
+    persistSessionToken(target, "");
+
+    expect(loadSettings(target).token).toBe("");
+    expect(sessionStorage.getItem(`openclaw.control.token.v1:${originScope}`)).toBeNull();
+  });
+
+  it("does not let a query-distinct neighbor use the legacy token", () => {
+    setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
+    const personal = "wss://gateway.example/rpc?account=personal";
+    const team = "wss://gateway.example/rpc?account=team";
+    localStorage.setItem(
+      `openclaw.control.settings.v1:${gatewayOriginScope(team)}`,
+      JSON.stringify({ gatewayUrl: team }),
+    );
+    sessionStorage.setItem(`openclaw.control.token.v1:${gatewayOriginScope(team)}`, "team-token");
+
+    expect(loadSettings(personal).token).toBe("");
+    expect(loadSettings(team).token).toBe("team-token");
   });
 
   it("isolates saved settings and sessions for query-distinct gateways", () => {

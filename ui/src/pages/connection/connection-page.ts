@@ -289,10 +289,9 @@ export class ConnectionPage extends OpenClawLightDomElement {
     }
     const wasActive = this.gatewayRegistry.activeGatewayId === id;
     try {
-      removeGatewayProfile(id);
-      this.gatewayRegistry = loadGatewayRegistryForGateway(
-        this.context.gateway.connection.gatewayUrl,
-      );
+      // Use the removal projection itself. Reloading with the still-mounted
+      // URL would re-add the profile that was just deleted as a fallback.
+      this.gatewayRegistry = removeGatewayProfile(id);
     } catch (error) {
       if (error instanceof GatewayRegistryPersistenceError) {
         this.gatewayRegistryError = t("connection.registry.persistence");

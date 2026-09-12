@@ -352,6 +352,20 @@ function legacyTokenSessionKeyForGateway(gatewayUrl: string): string {
   return `${TOKEN_SESSION_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`;
 }
 
+function removeLegacyTokenIfOwned(gatewayUrl: string, storage: Storage): void {
+  const legacyKey = legacyTokenSessionKeyForGateway(gatewayUrl);
+  if (legacyKey === tokenSessionKeyForGateway(gatewayUrl)) {
+    return;
+  }
+  const legacySettings = parsePersistedSettings(
+    getSafeLocalStorage()?.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(gatewayUrl)}`) ??
+      null,
+  );
+  if (legacySettings && settingsMatchGatewayTarget(legacySettings, gatewayUrl)) {
+    storage.removeItem(legacyKey);
+  }
+}
+
 function resolveScopedSessionSelection(
   gatewayUrl: string,
   parsed: PersistedUiSettings,
@@ -457,6 +471,10 @@ export function persistSessionToken(gatewayUrl: string, token: string) {
       return;
     }
     storage.removeItem(key);
+    // A query-aware profile may still be eligible for the pre-migration
+    // origin-scoped token. Clearing must retire that fallback too, but only
+    // when the legacy settings record proves it belongs to this endpoint.
+    removeLegacyTokenIfOwned(gatewayUrl, storage);
   } catch {
     // best-effort
   }
