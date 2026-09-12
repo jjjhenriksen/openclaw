@@ -320,6 +320,11 @@ export async function maybeCompactCodexAppServerSession(
             config: attempt.config,
             assertCurrent: assertAdmissionCurrent,
           }));
+          embeddedAgentLog.info("selected codex app-server compaction client", {
+            clientId: client.getInstanceId(),
+            recordedOwnerReused: Boolean(boundClientLease),
+            threadId: binding.threadId,
+          });
           let releaseThreadSubscription: (() => Promise<void>) | undefined;
           let retainedThreadOwnership: CodexAppServerLiveThreadOwnership | undefined;
           let canRetainThreadOwnership = false;
@@ -723,6 +728,10 @@ export async function maybeCompactCodexAppServerSession(
                 if (boundClientClosed && appServer.start.transport === "stdio") {
                   // Keep the lane fenced until the recorded owner physically exits.
                   hold(waitForCodexAppServerTemporaryClientExit(client, false));
+                  embeddedAgentLog.info("fenced recorded-owner compaction client until process exit", {
+                    clientId: client.getInstanceId(),
+                    threadId: binding.threadId,
+                  });
                 } else if (!boundClientLease && shouldReleaseDefaultLease) {
                   temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
                   if (!temporaryClientExited && appServer.start.transport === "stdio") {
