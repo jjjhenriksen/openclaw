@@ -717,10 +717,13 @@ export async function maybeCompactCodexAppServerSession(
               try {
                 await modelOwner?.unregister();
               } finally {
-                boundClientLease?.release();
+                const boundClientClosed = boundClientLease?.release() ?? false;
                 // Unsubscribe keeps the native thread loaded. A cold compaction owns
                 // its process and must release the writer before a later turn resumes.
-                if (!boundClientLease && shouldReleaseDefaultLease) {
+                if (boundClientClosed && appServer.start.transport === "stdio") {
+                  // Keep the lane fenced until the recorded owner physically exits.
+                  hold(waitForCodexAppServerTemporaryClientExit(client, false));
+                } else if (!boundClientLease && shouldReleaseDefaultLease) {
                   temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
                   if (!temporaryClientExited && appServer.start.transport === "stdio") {
                     // Register the hold before failure results release the thread lane.

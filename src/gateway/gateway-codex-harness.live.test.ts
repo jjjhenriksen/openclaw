@@ -2899,11 +2899,7 @@ describeLive("gateway live (Codex harness)", () => {
                 expectedText: [],
                 isExpectedText: (text) => {
                   const normalized = text.toLowerCase();
-                  return (
-                    normalized.includes("compact") &&
-                    !normalized.includes("did not complete") &&
-                    !normalized.includes("already has an active writer")
-                  );
+                  return normalized.includes("compacted codex session (");
                 },
                 predicateOnly: true,
               });
@@ -2911,22 +2907,6 @@ describeLive("gateway live (Codex harness)", () => {
                 text: explicitCompactText,
                 threadId: resumeStressState.threadId,
               });
-              await client.stopAndWait();
-              client = undefined;
-              await instance.stopGateway();
-              gatewayEvents.length = 0;
-              await instance.startGateway();
-              client = await connectTestGatewayClient({
-                url: `ws://127.0.0.1:${port}`,
-                token,
-                deviceIdentity,
-                timeoutMs: GATEWAY_CONNECT_TIMEOUT_MS,
-                requestTimeoutMs: CODEX_HARNESS_REQUEST_TIMEOUT_MS,
-                clientDisplayName: "vitest-codex-explicit-compact-continuation",
-                caps: CODEX_HARNESS_CLIENT_CAPS,
-                onEvent: captureGatewayEvent,
-              });
-              activeApprovalClient = client;
               await assertCodexHarnessSessionSelection({
                 client,
                 modelKey,

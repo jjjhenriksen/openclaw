@@ -1553,7 +1553,7 @@ export function clearSharedCodexAppServerClientIfCurrentAndUnclaimed(
 function retainSharedClientEntry(
   entry: SharedCodexAppServerClientEntry,
   counter: "activeLeases" | "pendingAcquires" = "activeLeases",
-): () => void {
+): () => boolean {
   let released = false;
   entry[counter] += 1;
   return () => {
@@ -1561,17 +1561,18 @@ function retainSharedClientEntry(
       return;
     }
     released = true;
-    releaseSharedClientEntry(entry, counter);
+    return releaseSharedClientEntry(entry, counter);
   };
 }
 
 function releaseSharedClientEntry(
   entry: SharedCodexAppServerClientEntry,
   counter: "activeLeases" | "pendingAcquires",
-): void {
+): boolean {
   entry[counter] -= 1;
-  closeRetiredSharedClientEntryIfIdle(entry);
+  const closed = closeRetiredSharedClientEntryIfIdle(entry);
   notifyDesktopGenerationDrainChecks(getSharedCodexAppServerClientState());
+  return closed;
 }
 
 function closeSharedClientEntryIfUnclaimed(entry: SharedCodexAppServerClientEntry): boolean {
