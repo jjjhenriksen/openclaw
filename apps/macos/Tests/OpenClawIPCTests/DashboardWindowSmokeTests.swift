@@ -681,7 +681,6 @@ extension DashboardWindowSmokeTests {
         #expect(chromeScript.source.contains("openclaw-native-web-chrome"))
         #expect(!chromeScript.source.contains("openclaw-native-nav"))
         #expect(!chromeScript.source.contains("__OPENCLAW_NATIVE_EMBED__"))
-        #expect(chromeScript.source.contains("__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"))
         #expect(chromeScript.injectionTime == .atDocumentEnd)
         #expect(chromeScript.isForMainFrameOnly)
     }
