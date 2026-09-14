@@ -1,7 +1,10 @@
 // Control UI module implements main behavior.
 import "./styles.css";
 import "./app/app-host.ts";
-import { shouldRegisterControlUiServiceWorker } from "./app/native-web-chrome.ts";
+import {
+  isOwnedControlUiServiceWorkerRegistration,
+  shouldRegisterControlUiServiceWorker,
+} from "./app/native-web-chrome.ts";
 import { inferControlUiPublicAssetPath } from "./app/public-assets.ts";
 import {
   installMissingStylesheetRecovery,
@@ -54,9 +57,16 @@ if (shouldRegisterControlUiServiceWorker(isProd) && "serviceWorker" in navigator
   // the browser Control UI service-worker update lifecycle. Retire any worker
   // left by an earlier build so it cannot keep serving an old app shell.
   // Development follows the same cleanup path to avoid stale cache issues.
+  const controlUiWorkerUrl = new URL(
+    inferControlUiPublicAssetPath("sw.js"),
+    window.location.origin,
+  );
+  const pageUrl = new URL(window.location.href);
   void navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const r of registrations) {
-      void r.unregister();
+    for (const registration of registrations) {
+      if (isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl)) {
+        void registration.unregister();
+      }
     }
   });
 }
