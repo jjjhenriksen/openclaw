@@ -368,7 +368,7 @@ describe("ConnectionPage credentials", () => {
     editInput(page, "Gateway URL", "wss://other-gateway.example/openclaw");
     await settleLitElement(page);
     expect(control(page, 'input[aria-label="Gateway secret"]').value).toBe("");
-    buttonByText(page, "Connect").click();
+    buttonByText(page, "Apply and reconnect").click();
     expect(connect).toHaveBeenCalledWith(
       expect.objectContaining({
         gatewayUrl: "wss://other-gateway.example/openclaw",
@@ -402,7 +402,7 @@ describe("ConnectionPage credentials", () => {
       expect(secret().value).toBe("");
       editInput(page, "Gateway secret", "edited-secret");
       await settleLitElement(page);
-      buttonByText(page, "Connect").click();
+      buttonByText(page, "Apply and reconnect").click();
       expect(connect).toHaveBeenLastCalledWith(
         expect.objectContaining({ token: "edited-secret", password: "" }),
       );
