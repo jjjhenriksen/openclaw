@@ -12,12 +12,14 @@ type NativeEmbedHost = {
   formFactor: "phone" | "pad" | "desktop";
 };
 
-type NativeWebChromeWindow = Window & {
-  __OPENCLAW_NATIVE_EMBED__?: unknown;
-  __OPENCLAW_NATIVE_WEB_CHROME__?: boolean;
-  __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__?: "reload";
-  __OPENCLAW_NATIVE_HISTORY__?: NativeHistoryState;
-};
+declare global {
+  interface Window {
+    __OPENCLAW_NATIVE_EMBED__?: unknown;
+    __OPENCLAW_NATIVE_WEB_CHROME__?: boolean;
+    __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__?: "reload";
+    __OPENCLAW_NATIVE_HISTORY__?: NativeHistoryState;
+  }
+}
 
 // Hosts listen from document start so they can enable the shared chrome before
 // application state reads their flag or the first shell renders.
@@ -26,7 +28,7 @@ if (typeof window !== "undefined") {
 }
 
 export function isNativeWebChromeHost(): boolean {
-  return (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] === true;
+  return window.__OPENCLAW_NATIVE_WEB_CHROME__ === true;
 }
 
 export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
@@ -34,9 +36,7 @@ export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
 }
 
 export function usesNativeControlUiCachePolicy(): boolean {
-  return (
-    (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"] === "reload"
-  );
+  return window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__ === "reload";
 }
 
 export function isOwnedControlUiServiceWorkerRegistration(
@@ -74,7 +74,7 @@ export function isOwnedControlUiServiceWorkerRegistration(
 
 export function nativeEmbedHost(): NativeEmbedHost | null {
   // SAFETY: the host adds this optional document-start value; its shape is validated below.
-  const host = (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_EMBED__"];
+  const host = window.__OPENCLAW_NATIVE_EMBED__;
   if (!isRecord(host)) {
     return null;
   }
@@ -90,7 +90,7 @@ export function isNativeEmbedHost(): boolean {
 }
 
 export function readNativeHistoryState(): NativeHistoryState {
-  const state = (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_HISTORY__"];
+  const state = window.__OPENCLAW_NATIVE_HISTORY__;
   return state && typeof state.canGoBack === "boolean" && typeof state.canGoForward === "boolean"
     ? state
     : { canGoBack: false, canGoForward: false };

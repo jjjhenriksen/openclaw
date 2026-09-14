@@ -204,9 +204,9 @@ suite.define(() => {
     await expect
       .poll(() =>
         page.evaluate(() => ({
-          cachePolicy: window["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"],
-          embedHost: window["__OPENCLAW_NATIVE_EMBED__"],
-          webChrome: window["__OPENCLAW_NATIVE_WEB_CHROME__"],
+          cachePolicy: window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__,
+          embedHost: window.__OPENCLAW_NATIVE_EMBED__,
+          webChrome: window.__OPENCLAW_NATIVE_WEB_CHROME__,
         })),
       )
       .toEqual({ cachePolicy: "reload", embedHost: undefined, webChrome: true });
