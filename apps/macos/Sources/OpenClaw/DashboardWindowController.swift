@@ -483,7 +483,7 @@ final class DashboardWindowController: NSWindowController, WKNavigationDelegate,
         dashboardWindowLogger
             .debug("dashboard load \(GatewayEndpointStore.diagnosticURLString(for: url), privacy: .public)")
         guard let browserSessionLease else {
-            self.webView.load(URLRequest(url: url))
+            self.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
             return
         }
         let generation = self.loadGeneration
@@ -493,7 +493,7 @@ final class DashboardWindowController: NSWindowController, WKNavigationDelegate,
                 try await browserSessionLease.prepare(for: url, in: contentController)
                 guard let self, self.loadGeneration == generation, self.window != nil else { return }
                 self.pendingLoad = nil
-                self.webView.load(URLRequest(url: url))
+                self.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
             } catch {
                 guard !Task.isCancelled, let self, self.loadGeneration == generation else { return }
                 self.pendingLoad = nil
