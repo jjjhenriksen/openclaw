@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  isOwnedControlUiServiceWorkerRegistration,
   isNativeEmbedHost,
   nativeEmbedHost,
   isNativeWebChromeHost,
@@ -61,10 +62,39 @@ describe("native web chrome capability", () => {
     (isProd, expected) => {
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
       (window as TestNativeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] = true;
+      expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
+      Object.assign(window, {
+        __OPENCLAW_NATIVE_EMBED__: { platform: "macos", formFactor: "desktop" },
+      });
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(false);
+      Object.assign(window, {
+        __OPENCLAW_NATIVE_EMBED__: { platform: "ios", formFactor: "phone" },
+      });
+      expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
       Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_WEB_CHROME__");
     },
   );
+
+  it.each([
+    ["owned Control UI worker", "http://127.0.0.1:18789/sw.js", "/", true],
+    ["worker outside the Control UI scope", "http://127.0.0.1:18789/sw.js", "/other/", false],
+    ["unrelated same-origin worker", "http://127.0.0.1:18789/other-sw.js", "/", false],
+    ["cross-origin worker", "https://example.test/sw.js", "/", false],
+  ] as const)("identifies %s", (_label, scriptUrl, scopePath, expected) => {
+    const registration = {
+      scope: `http://127.0.0.1:18789${scopePath}`,
+      installing: null,
+      waiting: null,
+      active: { scriptURL: scriptUrl },
+    } as unknown as ServiceWorkerRegistration;
+    expect(
+      isOwnedControlUiServiceWorkerRegistration(
+        registration,
+        new URL("http://127.0.0.1:18789/sw.js"),
+        new URL("http://127.0.0.1:18789/chat"),
+      ),
+    ).toBe(expected);
+  });
 
   it("reads native history state and defaults safely", () => {
     expect(readNativeHistoryState()).toEqual({ canGoBack: false, canGoForward: false });

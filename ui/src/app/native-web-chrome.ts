@@ -29,7 +29,42 @@ export function isNativeWebChromeHost(): boolean {
 }
 
 export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
-  return isProd && !isNativeWebChromeHost();
+  // macOS WebKit uses a persistent local cache and has a native notification
+  // bridge. Other native hosts still own the browser service-worker lifecycle.
+  return isProd && !(isNativeWebChromeHost() && nativeEmbedHost()?.platform === "macos");
+}
+
+export function isOwnedControlUiServiceWorkerRegistration(
+  registration: ServiceWorkerRegistration,
+  controlUiWorkerUrl: URL,
+  pageUrl: URL,
+): boolean {
+  let scopeUrl: URL;
+  try {
+    scopeUrl = new URL(registration.scope);
+  } catch {
+    return false;
+  }
+  const pagePath = pageUrl.pathname;
+  const scopePath = scopeUrl.pathname.endsWith("/") ? scopeUrl.pathname : `${scopeUrl.pathname}/`;
+  const scopeCoversPage = pagePath === scopeUrl.pathname || pagePath.startsWith(scopePath);
+  if (scopeUrl.origin !== controlUiWorkerUrl.origin || !scopeCoversPage) {
+    return false;
+  }
+  return [registration.installing, registration.waiting, registration.active].some((worker) => {
+    if (!worker) {
+      return false;
+    }
+    try {
+      const scriptUrl = new URL(worker.scriptURL);
+      return (
+        scriptUrl.origin === controlUiWorkerUrl.origin &&
+        scriptUrl.pathname === controlUiWorkerUrl.pathname
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function nativeEmbedHost(): NativeEmbedHost | null {
