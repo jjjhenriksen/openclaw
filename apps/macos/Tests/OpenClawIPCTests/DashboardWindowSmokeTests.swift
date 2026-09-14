@@ -680,6 +680,8 @@ extension DashboardWindowSmokeTests {
         #expect(!chromeScript.source.contains("max-width: 1100px"))
         #expect(chromeScript.source.contains("openclaw-native-web-chrome"))
         #expect(!chromeScript.source.contains("openclaw-native-nav"))
+        #expect(!chromeScript.source.contains("__OPENCLAW_NATIVE_EMBED__"))
+        #expect(chromeScript.source.contains("__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"))
         #expect(chromeScript.injectionTime == .atDocumentEnd)
         #expect(chromeScript.isForMainFrameOnly)
     }
@@ -701,6 +703,8 @@ extension DashboardWindowSmokeTests {
 
         #expect(capabilityScript.injectionTime == .atDocumentStart)
         #expect(capabilityScript.isForMainFrameOnly)
+        #expect(capabilityScript.source.contains("__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"))
+        #expect(!capabilityScript.source.contains("__OPENCLAW_NATIVE_EMBED__"))
         #expect(controller.window?.titlebarAccessoryViewControllers.isEmpty == true)
         #expect(controller._testAllowsBackForwardGestures)
     }

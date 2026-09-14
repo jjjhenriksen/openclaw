@@ -8,7 +8,9 @@ import {
   isNativeWebChromeHost,
   readNativeHistoryState,
   shouldRegisterControlUiServiceWorker,
+  usesNativeControlUiCachePolicy,
 } from "./native-web-chrome.ts";
+import { inferControlUiPublicAssetPath } from "./public-assets.ts";
 
 type TestNativeWindow = Window & {
   __OPENCLAW_NATIVE_WEB_CHROME__?: boolean;
@@ -17,6 +19,7 @@ type TestNativeWindow = Window & {
 
 afterEach(() => {
   Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_WEB_CHROME__");
+  Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__");
   Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_HISTORY__");
   Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_EMBED__");
 });
@@ -64,12 +67,14 @@ describe("native web chrome capability", () => {
       (window as TestNativeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] = true;
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
       Object.assign(window, {
-        __OPENCLAW_NATIVE_EMBED__: { platform: "macos", formFactor: "desktop" },
+        __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__: "reload",
       });
+      expect(usesNativeControlUiCachePolicy()).toBe(true);
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(false);
       Object.assign(window, {
-        __OPENCLAW_NATIVE_EMBED__: { platform: "ios", formFactor: "phone" },
+        __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__: undefined,
       });
+      expect(usesNativeControlUiCachePolicy()).toBe(false);
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
       Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_WEB_CHROME__");
     },
@@ -94,6 +99,23 @@ describe("native web chrome capability", () => {
         new URL("http://127.0.0.1:18789/chat"),
       ),
     ).toBe(expected);
+  });
+
+  it("identifies the owned worker under an inferred custom base path", () => {
+    const pageUrl = new URL("http://127.0.0.1:18789/apps/openclaw/chat");
+    const registration = {
+      scope: "http://127.0.0.1:18789/apps/openclaw/",
+      installing: null,
+      waiting: null,
+      active: { scriptURL: "http://127.0.0.1:18789/apps/openclaw/sw.js?v=old-build" },
+    } as unknown as ServiceWorkerRegistration;
+    const controlUiWorkerUrl = new URL(
+      inferControlUiPublicAssetPath("sw.js", { pathname: pageUrl.pathname }),
+      pageUrl.origin,
+    );
+    expect(
+      isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl),
+    ).toBe(true);
   });
 
   it("reads native history state and defaults safely", () => {

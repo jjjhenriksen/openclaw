@@ -62,13 +62,32 @@ if (shouldRegisterControlUiServiceWorker(isProd) && "serviceWorker" in navigator
     window.location.origin,
   );
   const pageUrl = new URL(window.location.href);
-  void navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      if (isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl)) {
-        void registration.unregister();
+  void navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) => {
+      for (const registration of registrations) {
+        if (isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl)) {
+          void registration
+            .unregister()
+            .then((unregistered) => {
+              if (!unregistered) {
+                console.warn("OpenClaw Control UI service worker cleanup was not completed.", {
+                  scope: registration.scope,
+                });
+              }
+            })
+            .catch((error: unknown) => {
+              console.warn("OpenClaw Control UI service worker cleanup failed.", {
+                error,
+                scope: registration.scope,
+              });
+            });
+        }
       }
-    }
-  });
+    })
+    .catch((error: unknown) => {
+      console.warn("OpenClaw Control UI service worker cleanup lookup failed.", error);
+    });
 }
 
 function syncDocumentPublicAssetLinks() {

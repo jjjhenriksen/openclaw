@@ -193,6 +193,25 @@ suite.define(() => {
     await page.keyboard.press("Escape");
   });
 
+  it("preserves the desktop shell with the macOS startup capabilities", async () => {
+    const page = await openPage({ webChrome: true });
+
+    await expect.poll(() => page.locator(".shell-nav").isVisible()).toBe(true);
+    await expect.poll(() => page.locator("openclaw-app-topbar").count()).toBe(1);
+    await expect
+      .poll(() => page.locator("openclaw-macos-titlebar-controls").isVisible())
+      .toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          cachePolicy: window["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"],
+          embedHost: window["__OPENCLAW_NATIVE_EMBED__"],
+          webChrome: window["__OPENCLAW_NATIVE_WEB_CHROME__"],
+        })),
+      )
+      .toEqual({ cachePolicy: "reload", embedHost: undefined, webChrome: true });
+  });
+
   it("closes navigation while the sidebar element is still unregistered", async () => {
     const testCase = {
       module: /\/assets\/app-sidebar-[A-Za-z0-9_-]{8}\.js(?:\?.*)?$/u,

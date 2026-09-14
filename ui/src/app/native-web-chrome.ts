@@ -15,6 +15,7 @@ type NativeEmbedHost = {
 type NativeWebChromeWindow = Window & {
   __OPENCLAW_NATIVE_EMBED__?: unknown;
   __OPENCLAW_NATIVE_WEB_CHROME__?: boolean;
+  __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__?: "reload";
   __OPENCLAW_NATIVE_HISTORY__?: NativeHistoryState;
 };
 
@@ -29,9 +30,13 @@ export function isNativeWebChromeHost(): boolean {
 }
 
 export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
-  // macOS WebKit uses a persistent local cache and has a native notification
-  // bridge. Other native hosts still own the browser service-worker lifecycle.
-  return isProd && !(isNativeWebChromeHost() && nativeEmbedHost()?.platform === "macos");
+  return isProd && !usesNativeControlUiCachePolicy();
+}
+
+export function usesNativeControlUiCachePolicy(): boolean {
+  return (
+    (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"] === "reload"
+  );
 }
 
 export function isOwnedControlUiServiceWorkerRegistration(
