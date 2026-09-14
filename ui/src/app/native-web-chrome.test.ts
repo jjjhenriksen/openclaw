@@ -6,6 +6,7 @@ import {
   nativeEmbedHost,
   isNativeWebChromeHost,
   readNativeHistoryState,
+  shouldRegisterControlUiServiceWorker,
 } from "./native-web-chrome.ts";
 
 type TestNativeWindow = Window & {
@@ -51,6 +52,19 @@ describe("native web chrome capability", () => {
     (window as TestNativeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] = true;
     expect(isNativeWebChromeHost()).toBe(true);
   });
+
+  it.each([
+    [false, false],
+    [true, true],
+  ] as const)(
+    "registers the service worker only for production browser hosts: %j",
+    (isProd, expected) => {
+      expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
+      (window as TestNativeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] = true;
+      expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(false);
+      Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_WEB_CHROME__");
+    },
+  );
 
   it("reads native history state and defaults safely", () => {
     expect(readNativeHistoryState()).toEqual({ canGoBack: false, canGoForward: false });

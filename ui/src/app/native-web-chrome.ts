@@ -28,6 +28,10 @@ export function isNativeWebChromeHost(): boolean {
   return (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_WEB_CHROME__"] === true;
 }
 
+export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
+  return isProd && !isNativeWebChromeHost();
+}
+
 export function nativeEmbedHost(): NativeEmbedHost | null {
   // SAFETY: the host adds this optional document-start value; its shape is validated below.
   const host = (window as NativeWebChromeWindow)["__OPENCLAW_NATIVE_EMBED__"];

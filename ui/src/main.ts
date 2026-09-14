@@ -1,6 +1,7 @@
 // Control UI module implements main behavior.
 import "./styles.css";
 import "./app/app-host.ts";
+import { shouldRegisterControlUiServiceWorker } from "./app/native-web-chrome.ts";
 import { inferControlUiPublicAssetPath } from "./app/public-assets.ts";
 import {
   installMissingStylesheetRecovery,
@@ -22,7 +23,7 @@ syncDocumentPublicAssetLinks();
 installStaleChunkReloadListener();
 installMissingStylesheetRecovery();
 
-if (isProd && "serviceWorker" in navigator) {
+if (shouldRegisterControlUiServiceWorker(isProd) && "serviceWorker" in navigator) {
   const swUrl = new URL(inferControlUiPublicAssetPath("sw.js"), window.location.origin);
   swUrl.searchParams.set("v", currentControlUiBuildId);
   navigator.serviceWorker.addEventListener("message", (event) => {
@@ -48,8 +49,11 @@ if (isProd && "serviceWorker" in navigator) {
     .catch((error: unknown) => {
       console.warn("OpenClaw service worker registration failed.", error);
     });
-} else if (!isProd && "serviceWorker" in navigator) {
-  // Unregister any leftover dev SW to avoid stale cache issues.
+} else if ("serviceWorker" in navigator) {
+  // Native WebKit hosts use a persistent data store but do not participate in
+  // the browser Control UI service-worker update lifecycle. Retire any worker
+  // left by an earlier build so it cannot keep serving an old app shell.
+  // Development follows the same cleanup path to avoid stale cache issues.
   void navigator.serviceWorker.getRegistrations().then((registrations) => {
     for (const r of registrations) {
       void r.unregister();
