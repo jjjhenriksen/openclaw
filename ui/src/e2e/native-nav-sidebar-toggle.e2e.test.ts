@@ -95,6 +95,7 @@ suite.define(() => {
     pathname?: string;
     readySelector?: string;
     scenario?: ControlUiMockGatewayScenario;
+    serviceWorkers?: "allow" | "block";
     webChrome?: boolean;
     width?: number;
   }) {
@@ -102,7 +103,7 @@ suite.define(() => {
       colorScheme: options.colorScheme,
       hasTouch: options.hasTouch,
       locale: "en-US",
-      serviceWorkers: "block",
+      serviceWorkers: options.serviceWorkers ?? "block",
       viewport: { height: options.height ?? 900, width: options.width ?? 1280 },
     });
     const page = await context.newPage();
@@ -210,6 +211,31 @@ suite.define(() => {
         })),
       )
       .toEqual({ cachePolicy: "reload", embedHost: undefined, webChrome: true });
+  });
+
+  it("retires an owned worker on a native cache-policy startup", async () => {
+    const page = await openPage({ serviceWorkers: "allow" });
+    const controlUiWorker = () =>
+      page.evaluate(async () => {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        return registrations.filter((registration) => {
+          const workers = [registration.installing, registration.waiting, registration.active];
+          return workers.some((worker) =>
+            new URL(worker?.scriptURL ?? "").pathname.endsWith("/sw.js"),
+          );
+        }).length;
+      });
+
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.register("/sw.js?v=stale-profile");
+    });
+    await expect.poll(controlUiWorker).toBe(1);
+    await page.evaluate(() => {
+      window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__ = "reload";
+      window.__OPENCLAW_NATIVE_WEB_CHROME__ = true;
+    });
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(controlUiWorker).toBe(0);
   });
 
   it("closes navigation while the sidebar element is still unregistered", async () => {
