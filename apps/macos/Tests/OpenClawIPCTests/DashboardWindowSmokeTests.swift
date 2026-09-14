@@ -696,6 +696,8 @@ extension DashboardWindowSmokeTests {
             windowAutosaveName: "",
             requestBrowserProfileImportOffer: { _ in false })
         defer { controller.closeDashboard() }
+        // The cache-policy capability is document-start; the styling script
+        // above intentionally remains a separate document-end user script.
         let capabilityScript = try #require(controller._testUserScripts.first {
             $0.source.contains("__OPENCLAW_NATIVE_WEB_CHROME__")
         })
