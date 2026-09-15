@@ -8,7 +8,6 @@ import {
   isNativeWebChromeHost,
   readNativeHistoryState,
   shouldRegisterControlUiServiceWorker,
-  usesNativeControlUiCachePolicy,
 } from "./native-web-chrome.ts";
 import { inferControlUiPublicAssetPath } from "./public-assets.ts";
 
@@ -69,12 +68,10 @@ describe("native web chrome capability", () => {
       Object.assign(window, {
         __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__: "reload",
       });
-      expect(usesNativeControlUiCachePolicy()).toBe(true);
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(false);
       Object.assign(window, {
         __OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__: undefined,
       });
-      expect(usesNativeControlUiCachePolicy()).toBe(false);
       expect(shouldRegisterControlUiServiceWorker(isProd)).toBe(expected);
       Reflect.deleteProperty(window, "__OPENCLAW_NATIVE_WEB_CHROME__");
     },

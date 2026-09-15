@@ -205,9 +205,9 @@ suite.define(() => {
     await expect
       .poll(() =>
         page.evaluate(() => ({
-          cachePolicy: window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__,
-          embedHost: window.__OPENCLAW_NATIVE_EMBED__,
-          webChrome: window.__OPENCLAW_NATIVE_WEB_CHROME__,
+          cachePolicy: window["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"],
+          embedHost: window["__OPENCLAW_NATIVE_EMBED__"],
+          webChrome: window["__OPENCLAW_NATIVE_WEB_CHROME__"],
         })),
       )
       .toEqual({ cachePolicy: "reload", embedHost: undefined, webChrome: true });
@@ -220,8 +220,8 @@ suite.define(() => {
         const registrations = await navigator.serviceWorker.getRegistrations();
         return registrations.filter((registration) => {
           const workers = [registration.installing, registration.waiting, registration.active];
-          return workers.some((worker) =>
-            new URL(worker?.scriptURL ?? "").pathname.endsWith("/sw.js"),
+          return workers.some(
+            (worker) => worker !== null && new URL(worker.scriptURL).pathname.endsWith("/sw.js"),
           );
         }).length;
       });
@@ -230,11 +230,11 @@ suite.define(() => {
       await navigator.serviceWorker.register("/sw.js?v=stale-profile");
     });
     await expect.poll(controlUiWorker).toBe(1);
-    await page.evaluate(() => {
-      window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__ = "reload";
-      window.__OPENCLAW_NATIVE_WEB_CHROME__ = true;
-    });
+    await installNativeWebChrome(page);
     await page.reload({ waitUntil: "load" });
+    await expect
+      .poll(() => page.evaluate(() => window["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"]))
+      .toBe("reload");
     await expect.poll(controlUiWorker).toBe(0);
   });
 

@@ -28,15 +28,15 @@ if (typeof window !== "undefined") {
 }
 
 export function isNativeWebChromeHost(): boolean {
-  return window.__OPENCLAW_NATIVE_WEB_CHROME__ === true;
+  return window["__OPENCLAW_NATIVE_WEB_CHROME__"] === true;
 }
 
 export function shouldRegisterControlUiServiceWorker(isProd: boolean): boolean {
   return isProd && !usesNativeControlUiCachePolicy();
 }
 
-export function usesNativeControlUiCachePolicy(): boolean {
-  return window.__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__ === "reload";
+function usesNativeControlUiCachePolicy(): boolean {
+  return window["__OPENCLAW_NATIVE_CONTROL_UI_CACHE_POLICY__"] === "reload";
 }
 
 export function isOwnedControlUiServiceWorkerRegistration(
@@ -74,7 +74,7 @@ export function isOwnedControlUiServiceWorkerRegistration(
 
 export function nativeEmbedHost(): NativeEmbedHost | null {
   // SAFETY: the host adds this optional document-start value; its shape is validated below.
-  const host = window.__OPENCLAW_NATIVE_EMBED__;
+  const host = window["__OPENCLAW_NATIVE_EMBED__"];
   if (!isRecord(host)) {
     return null;
   }
@@ -90,7 +90,7 @@ export function isNativeEmbedHost(): boolean {
 }
 
 export function readNativeHistoryState(): NativeHistoryState {
-  const state = window.__OPENCLAW_NATIVE_HISTORY__;
+  const state = window["__OPENCLAW_NATIVE_HISTORY__"];
   return state && typeof state.canGoBack === "boolean" && typeof state.canGoForward === "boolean"
     ? state
     : { canGoBack: false, canGoForward: false };
