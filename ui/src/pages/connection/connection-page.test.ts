@@ -437,6 +437,48 @@ describe("ConnectionPage credentials", () => {
   });
 });
 
+describe("ConnectionPage Gateway registry", () => {
+  it("keeps the mounted Gateway active after removing a different inactive profile", async () => {
+    const mountedUrl = "ws://gateway-a.example";
+    const selectedElsewhereUrl = "ws://gateway-b.example";
+    const removedUrl = "ws://gateway-c.example";
+    localStorage.setItem(
+      "openclaw.control.gateway-registry.v1",
+      JSON.stringify({
+        gateways: [
+          { id: mountedUrl, name: "Gateway A", url: mountedUrl },
+          { id: selectedElsewhereUrl, name: "Gateway B", url: selectedElsewhereUrl },
+          { id: removedUrl, name: "Gateway C", url: removedUrl },
+        ],
+        activeGatewayId: selectedElsewhereUrl,
+      }),
+    );
+    const current = source({
+      request: vi.fn().mockResolvedValue(deviceSystemInfo),
+    } as unknown as GatewayBrowserClient);
+    Object.assign(current.gateway.connection, { gatewayUrl: mountedUrl });
+    const connect = vi.spyOn(current.gateway, "connect");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    try {
+      const { page } = await mount(current.gateway);
+      control(page, 'button[aria-label="Remove Gateway C"]').click();
+      await settleLitElement(page);
+
+      const activeRow = [...page.querySelectorAll(".gateway-registry__row")].find((row) =>
+        row.textContent?.includes("Gateway A"),
+      );
+      expect(activeRow?.textContent).toContain("Active");
+      expect(
+        control(page, 'button[aria-label="Switch to Gateway B"]').hasAttribute("disabled"),
+      ).toBe(false);
+      expect(connect).not.toHaveBeenCalled();
+    } finally {
+      localStorage.clear();
+    }
+  });
+});
+
 describe("ConnectionPage session selection", () => {
   it("saves and discards session edits independently of the pending connection", async () => {
     const current = source({

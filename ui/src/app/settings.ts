@@ -300,6 +300,7 @@ function getSessionStorage(): Storage | null {
 type PersistedSettingsSource = {
   gatewayUrl: string;
   parsed: PersistedUiSettings;
+  storageKey: string;
 };
 
 function parsePersistedSettings(raw: string | null): PersistedUiSettings | null {
@@ -322,12 +323,18 @@ function readSettingsForGateway(
   targetUrl: string,
 ): PersistedSettingsSource | null {
   const candidates = [
-    storage?.getItem(settingsKeyForGateway(targetUrl)) ?? null,
+    {
+      key: settingsKeyForGateway(targetUrl),
+      raw: storage?.getItem(settingsKeyForGateway(targetUrl)) ?? null,
+    },
     // Before query-aware credential scopes, query-bearing gateways shared the
     // origin key. Only accept that data when its stored URL proves ownership.
-    storage?.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(targetUrl)}`) ?? null,
+    {
+      key: `${SETTINGS_KEY_PREFIX}${gatewayOriginScope(targetUrl)}`,
+      raw: storage?.getItem(`${SETTINGS_KEY_PREFIX}${gatewayOriginScope(targetUrl)}`) ?? null,
+    },
   ];
-  for (const raw of candidates) {
+  for (const { key, raw } of candidates) {
     const parsed = parsePersistedSettings(raw);
     if (
       parsed &&
@@ -336,10 +343,25 @@ function readSettingsForGateway(
       return {
         gatewayUrl: normalizeOptionalString(parsed.gatewayUrl) ?? targetUrl,
         parsed,
+        storageKey: key,
       };
     }
   }
   return null;
+}
+
+function scrubDurableTokenFromSource(
+  storage: Storage | null,
+  source: PersistedSettingsSource,
+): void {
+  if (!storage || !("token" in source.parsed)) {
+    return;
+  }
+  // SAFETY: the source was parsed as persisted settings; the legacy token is intentionally extra.
+  const { token: _token, ...sanitized } = source.parsed as PersistedUiSettings & {
+    token?: unknown;
+  };
+  storage.setItem(source.storageKey, JSON.stringify(sanitized));
 }
 
 function tokenSessionKeyForGateway(gatewayUrl: string): string {
@@ -663,6 +685,9 @@ export function loadUiPreferences(
         { ...settings, token: loadSessionToken(gatewayUrl) },
         { selectGateway: !targetGatewayUrl },
       );
+      if (source.storageKey !== settingsKeyForGateway(gatewayUrl)) {
+        scrubDurableTokenFromSource(storage, source);
+      }
     }
     return settings;
   } catch {

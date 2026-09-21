@@ -369,6 +369,33 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(loadSettings(target).token).toBe("team-token");
   });
 
+  it("scrubs a durable token from the owned origin record during query migration", () => {
+    setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
+    const target = "wss://gateway.example/rpc?account=team";
+    const originScope = "wss://gateway.example/rpc";
+    const legacyKey = `openclaw.control.settings.v1:${originScope}`;
+    localStorage.setItem(
+      legacyKey,
+      JSON.stringify({
+        gatewayUrl: target,
+        token: "legacy-durable-token",
+        sessionKey: "agent:team:main",
+        lastActiveSessionKey: "agent:team:main",
+      }),
+    );
+
+    expect(loadSettings(target).gatewayUrl).toBe(target);
+
+    const legacy = JSON.parse(localStorage.getItem(legacyKey) ?? "{}") as Record<string, unknown>;
+    expect(legacy).not.toHaveProperty("token");
+    expect(legacy).toMatchObject({
+      gatewayUrl: target,
+      sessionKey: "agent:team:main",
+      lastActiveSessionKey: "agent:team:main",
+    });
+    expect(localStorage.getItem(settingsKeyForGateway(target))).not.toBeNull();
+  });
+
   it("retires an owned legacy token when a migrated query gateway is cleared", () => {
     setTestLocation({ protocol: "https:", host: "gateway.example:8443", pathname: "/" });
     const target = "wss://gateway.example/rpc?account=team";

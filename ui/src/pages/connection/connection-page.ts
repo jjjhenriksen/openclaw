@@ -421,7 +421,7 @@ export class ConnectionPage extends OpenClawLightDomElement {
     const wasActive = this.gatewayRegistry.activeGatewayId === id;
     try {
       // Use the removal projection itself. Reloading with the still-mounted
-      // URL would re-add the profile that was just deleted as a fallback.
+      // URL would re-add the profile that was just deleted during fallback recovery.
       this.gatewayRegistry = removeGatewayProfile(id);
     } catch (error) {
       if (error instanceof GatewayRegistryPersistenceError) {
@@ -441,6 +441,13 @@ export class ConnectionPage extends OpenClawLightDomElement {
           sessionKey: loadGatewaySessionSelection(nextProfile.url).sessionKey,
         });
       }
+    } else if (!wasActive) {
+      // Another tab may have changed the shared active profile while this page
+      // stayed mounted on its current Gateway. Keep this view projected onto
+      // the connection it actually owns after removing an unrelated profile.
+      this.gatewayRegistry = loadGatewayRegistryForGateway(
+        this.context.gateway.connection.gatewayUrl,
+      );
     }
   }
 
