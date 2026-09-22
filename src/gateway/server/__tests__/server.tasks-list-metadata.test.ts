@@ -4,6 +4,8 @@ import type { TasksListResult } from "../../../../packages/gateway-protocol/src/
 import { loadSessionEntry } from "../../../config/sessions/session-accessor.js";
 import * as sessionAccessor from "../../../config/sessions/session-accessor.js";
 import * as agentDatabaseReadOnly from "../../../state/openclaw-agent-db-readonly.js";
+import { captureOpenClawStateWorkerContext } from "../../../state/openclaw-state-worker-context.js";
+import { reloadTaskRegistryFromStoreAsync } from "../../../tasks/task-registry-state.js";
 import { listTaskRecords } from "../../../tasks/task-registry.js";
 import { configureTaskRegistryRuntime } from "../../../tasks/task-registry.store.js";
 import type { TaskRecord } from "../../../tasks/task-registry.types.js";
@@ -138,7 +140,6 @@ test("preserves task pagination during metadata patches but invalidates new requ
       ownerKey: missingSessionKey,
       lastEventAt: TASK_COUNT + 100,
     };
-    resetTaskRegistryForTests({ persist: false });
     configureTaskRegistryRuntime({
       store: {
         ...createInMemoryTaskRegistryStore(),
@@ -148,6 +149,7 @@ test("preserves task pagination during metadata patches but invalidates new requ
         }),
       },
     });
+    await reloadTaskRegistryFromStoreAsync(captureOpenClawStateWorkerContext());
     const beforeCreation = await sendRpc<TasksListResult>(
       viewer,
       "tasks-before-requester-created",

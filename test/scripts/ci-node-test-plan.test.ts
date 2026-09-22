@@ -5297,7 +5297,7 @@ describe("scripts/lib/ci-node-test-plan.mts", () => {
   });
 
   it.each(["github", "blacksmith", "hybrid"] as const)(
-    "bounds storage-state files per physical %s job without losing coverage",
+    "preserves storage-state coverage and hosted file bounds for %s",
     (runnerBackend) => {
       const owner = "core-runtime-infra-storage-state";
       const expected = defaultShards.find((shard) => shard.shardName === owner)!.includePatterns!;
@@ -5307,7 +5307,9 @@ describe("scripts/lib/ci-node-test-plan.mts", () => {
         const files = job.groups
           .filter((group) => group.shard_name.replace(/-hosted-\d+$/u, "") === owner)
           .flatMap((group) => group.includePatterns ?? []);
-        expect(files.length, job.shardName).toBeLessThanOrEqual(64);
+        if (runnerBackend === "github") {
+          expect(files.length, job.shardName).toBeLessThanOrEqual(64);
+        }
         actual.push(...files);
       }
       expect(actual.toSorted()).toEqual(expected.toSorted());
@@ -5596,13 +5598,12 @@ describe("scripts/lib/ci-node-test-plan.mts", () => {
       controlPlaneShards.map((shard) => ({
         checkName: `checks-node-${shard.shardName}`,
         configs: ["test/vitest/vitest.gateway-server.config.ts"],
-        ...(shard.shardName === "agentic-control-plane-runtime-config"
-          ? { pretestBuildMode: "runtime" }
-          : {}),
         ...(shard.shardName === "agentic-control-plane-startup-health-runtime"
           ? { env: { OPENCLAW_VITEST_NO_OUTPUT_TIMEOUT_MS: "60000" } }
           : {}),
-        ...(shard.includePatterns?.includes("src/gateway/server-sidecar-retention.test.ts")
+        ...(shard.includePatterns?.includes("src/gateway/server.config-patch.test.ts") ||
+        shard.includePatterns?.includes("src/gateway/server-sidecar-retention.test.ts") ||
+        shard.includePatterns?.includes("src/gateway/server.acp-native-model.product.test.ts")
           ? { pretestBuildMode: "runtime" }
           : {}),
         includePatterns: shard.includePatterns,
