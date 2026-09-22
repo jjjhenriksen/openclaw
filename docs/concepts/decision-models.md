@@ -33,6 +33,10 @@ Decision models have a separate **Decision** picker in the Control UI. Selection
 chooses the provider for explicit evaluation and supported consumers. The core
 `decision_evaluate` tool follows that selection plus ordinary tool policy.
 Selection does not start background work or replace the chat model.
+Automatic experimental consumers additionally require explicit
+[Decision assistance opt-in](/concepts/experimental-features#decision-assistance).
+That Labs entry currently provides the gate foundation only, with no automatic
+consumers connected; explicit `decision_evaluate` remains independent of Labs.
 
 ## Choose a provider and model
 

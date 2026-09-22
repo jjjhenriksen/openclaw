@@ -22,6 +22,7 @@ import { createTestPluginRegistry } from "../plugins/registry-runtime.test-helpe
 import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
 import { createDeferredCore } from "../shared/deferred.js";
 import { createOpenClawCodingTools } from "./agent-tools.js";
+import { isDecisionAssistanceEligible } from "./decision-assistance.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 
 const batch: DecisionBatch = {
@@ -128,6 +129,41 @@ afterEach(() => {
 });
 
 describe("core decision_evaluate registered flow", () => {
+  it("keeps the explicit tool independent of automatic eligibility through Labs on/off transitions", async () => {
+    const evaluate = vi.fn<DecisionProviderV1["evaluate"]>(async () => answer);
+    fixture(evaluate);
+    const retained = requiredTool("alternate");
+    for (const decisionAssistance of [false, true, false]) {
+      const current: OpenClawConfig = {
+        ...config,
+        agents: {
+          ...config.agents,
+          defaults: { ...config.agents!.defaults, experimental: { decisionAssistance } },
+        },
+      };
+      setRuntimeConfigSnapshot(current);
+      evaluate.mockClear();
+      expect(isDecisionAssistanceEligible(current, "main")).toBe(decisionAssistance);
+      expect(isDecisionAssistanceEligible(current, "alternate")).toBe(decisionAssistance);
+      expect(isDecisionAssistanceEligible(current, "disabled")).toBe(false);
+      expect(assembled("disabled", current)).toBeUndefined();
+      const fresh = assembled("main", current)!;
+      expect(fresh).toBeDefined();
+      expect(evaluate).not.toHaveBeenCalled();
+      expect((await fresh.execute("fresh", batch)).details).toMatchObject({ status: "ok" });
+      expect(evaluate).toHaveBeenLastCalledWith(
+        batch,
+        expect.objectContaining({ agentId: "main", model: "default" }),
+      );
+      expect((await retained.execute("retained", batch)).details).toMatchObject({ status: "ok" });
+      expect(evaluate).toHaveBeenLastCalledWith(
+        batch,
+        expect.objectContaining({ agentId: "alternate", model: "override" }),
+      );
+      expect(evaluate).toHaveBeenCalledTimes(2);
+    }
+  });
+
   it("requires effective selection without provider-health churn", () => {
     expect(assembled()).toBeDefined();
     expect(assembled("alternate")).toBeDefined();
