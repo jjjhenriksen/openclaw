@@ -35,6 +35,7 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
   private loadVersion = 0;
   private abortController: AbortController | undefined;
   private previewObjectUrl: string | undefined;
+  private previewBytes: Uint8Array | undefined;
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -50,8 +51,17 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
   override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has("src") || changed.has("sourceIdentity") || changed.has("sizeBytes")) {
       this.cancelLoad();
-      this.revokePreviewUrl();
-      this.status = "loading";
+      // A renewed ticket for the same attachment must not reset the native reader.
+      if (
+        !this.src ||
+        !this.previewUrl ||
+        !this.sourceIdentity ||
+        changed.has("sourceIdentity") ||
+        changed.has("sizeBytes")
+      ) {
+        this.revokePreviewUrl();
+        this.status = "loading";
+      }
       if (this.src) {
         void this.loadPdf();
       }
@@ -70,6 +80,7 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
       this.previewObjectUrl = undefined;
     }
     this.previewUrl = null;
+    this.previewBytes = undefined;
   }
 
   private async loadPdf(): Promise<void> {
@@ -96,16 +107,25 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
       if (!bytes) {
         throw new Error("PDF attachment exceeds preview limit");
       }
-      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
       if (version !== this.loadVersion || !this.isConnected) {
-        URL.revokeObjectURL(objectUrl);
         return;
       }
+      const nextBytes = new Uint8Array(bytes);
+      if (
+        this.previewBytes?.length === nextBytes.length &&
+        this.previewBytes.every((byte, index) => byte === nextBytes[index])
+      ) {
+        return;
+      }
+      this.revokePreviewUrl();
+      const objectUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      this.previewBytes = nextBytes;
       this.previewObjectUrl = objectUrl;
       this.previewUrl = objectUrl;
       this.status = "ready";
     } catch {
       if (version === this.loadVersion && this.isConnected) {
+        this.revokePreviewUrl();
         this.status = "error";
       }
     } finally {
