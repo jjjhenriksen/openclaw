@@ -1,11 +1,11 @@
-import { html, nothing, type PropertyValues } from "lit";
+import { html, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
-import { icons } from "../../../components/icons.ts";
 import { t } from "../../../i18n/index.ts";
-import { formatBytes } from "../../../lib/agents/display.ts";
 import { OpenClawLightDomContentsElement } from "../../../lit/openclaw-element.ts";
-import { renderAttachmentPreviewSkeleton } from "./chat-attachment-card.ts";
-import { resolveAttachmentFileIcon } from "./chat-attachment-file-icon.ts";
+import {
+  renderAttachmentPreviewSkeleton,
+  renderCompactAttachmentCard,
+} from "./chat-attachment-card.ts";
 import { safeAttachmentHref } from "./chat-attachment-href.ts";
 import { readResponseBytesWithinLimit } from "./chat-response-bytes.ts";
 
@@ -120,27 +120,6 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
     const downloadHref = safeAttachmentHref(this.downloadHref || this.src);
     return html`
       <div class="sidebar-pdf-preview" aria-label=${this.label}>
-        <div class="sidebar-file-toolbar">
-          <span class="sidebar-file-toolbar__type" title=${this.mimeType}
-            >${resolveAttachmentFileIcon(this.label, this.mimeType).extensionLabel}</span
-          >
-          ${this.sizeBytes === undefined ? nothing : html`<span>${formatBytes(this.sizeBytes)}</span>`}
-          <span class="sidebar-file-toolbar__actions">
-            ${
-              downloadHref
-                ? html`<a
-                    class="rail-header__action"
-                    href=${downloadHref}
-                    download=${this.label}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label=${t("chat.mediaPlayer.download", { filename: this.label })}
-                    >${icons.download}</a
-                  >`
-                : nothing
-            }
-          </span>
-        </div>
         <div class="sidebar-pdf-preview__surface">
           ${
             this.status === "loading"
@@ -148,6 +127,13 @@ class ChatPdfPreview extends OpenClawLightDomContentsElement {
               : this.status === "error" || !this.previewUrl
                 ? html`<div class="sidebar-attachment-preview__unavailable" role="alert">
                     ${t("chat.attachments.previewUnavailable")}
+                    ${renderCompactAttachmentCard({
+                      kind: "document",
+                      label: this.label,
+                      mimeType: this.mimeType,
+                      sizeBytes: this.sizeBytes,
+                      downloadHref: downloadHref ?? undefined,
+                    })}
                   </div>`
                 : html`<iframe
                     class="sidebar-pdf-preview__frame"

@@ -773,6 +773,12 @@
   &:has(.sidebar-file-toolbar) {
     padding-top: 0;
   }
+
+  &:has(.sidebar-pdf-preview) {
+    display: flex;
+    overflow: hidden;
+    padding: 0;
+  }
 }
 
 .chat-task-detail {
@@ -1449,7 +1455,8 @@ openclaw-session-discussion {
   width: 100%;
   min-height: 0;
 
-  &:has(.chat-html-preview:not([hidden])) {
+  &:has(.chat-html-preview:not([hidden])),
+  &:has(.sidebar-pdf-preview) {
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -1459,6 +1466,7 @@ openclaw-session-discussion {
 
 .sidebar-pdf-preview {
   display: flex;
+  flex: 1;
   flex-direction: column;
   width: 100%;
   min-width: 0;
@@ -1467,13 +1475,16 @@ openclaw-session-discussion {
 
 .sidebar-pdf-preview__surface {
   display: flex;
+  flex: 1;
   min-width: 0;
-  height: clamp(360px, 70dvh, 760px);
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
   background: var(--bg);
+}
+
+.sidebar-pdf-preview__surface > .sidebar-attachment-preview__unavailable {
+  flex: 1;
+  padding: 16px;
 }
 
 .sidebar-pdf-preview__surface > .sidebar-attachment-preview__loading {

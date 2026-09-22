@@ -12,7 +12,7 @@ type DetailPanel = HTMLElement & {
   updateComplete: Promise<unknown>;
 };
 
-it.skipIf(!browserMode)("renders a PDF in a bounded native reader surface", async () => {
+it.skipIf(!browserMode)("fills the sidebar content with a bounded native PDF reader", async () => {
   vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response("%PDF-1.7\n")));
   const container = document.createElement("div");
   container.className = "side-panel__panel";
@@ -37,7 +37,16 @@ it.skipIf(!browserMode)("renders a PDF in a bounded native reader surface", asyn
     const surface = panel.querySelector<HTMLElement>(".sidebar-pdf-preview__surface")!;
     expect(frame.getAttribute("src")).toMatch(/^blob:/);
     expect(getComputedStyle(frame).display).toBe("block");
-    expect(surface.getBoundingClientRect().height).toBeGreaterThan(0);
+    const content = panel.querySelector<HTMLElement>(".sidebar-content")!;
+    const contentBox = content.getBoundingClientRect();
+    expect(contentBox.height).toBeGreaterThan(0);
+    for (const element of [surface, frame]) {
+      const box = element.getBoundingClientRect();
+      for (const edge of ["top", "right", "bottom", "left"] as const) {
+        expect(box[edge]).toBeCloseTo(contentBox[edge], 0);
+      }
+    }
+    expect(panel.querySelector(".sidebar-file-toolbar")).toBeNull();
     expect(panel.querySelector("object")).toBeNull();
   } finally {
     container.remove();

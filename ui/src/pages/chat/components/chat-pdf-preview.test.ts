@@ -54,6 +54,7 @@ it("loads a bounded PDF into a CSP-compatible iframe", async () => {
   expect(frame.className).toBe("sidebar-pdf-preview__frame");
   expect(frame.getAttribute("src")).toBe("blob:pdf-preview");
   expect(frame.title).toBe("brief.pdf");
+  expect(panel.querySelector(".sidebar-file-toolbar")).toBeNull();
   expect(panel.querySelector("object")).toBeNull();
   expect(objectUrls.createObjectURL).toHaveBeenCalledOnce();
   expect(fetchMock).toHaveBeenCalledWith(
@@ -70,6 +71,11 @@ it("does not fetch a PDF known to exceed the preview budget", async () => {
   await vi.waitFor(() => expect(panel.textContent).toContain("Preview unavailable"));
   expect(panel.querySelector("iframe")).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
+  const download = panel.querySelector<HTMLAnchorElement>("a[download]");
+  expect(download?.getAttribute("href")).toBe(
+    "/__openclaw__/assistant-media?mediaTicket=pdf-preview",
+  );
+  expect(download?.download).toBe("brief.pdf");
 });
 
 it("cancels an oversized streamed PDF response", async () => {
