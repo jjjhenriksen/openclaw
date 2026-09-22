@@ -485,9 +485,8 @@ describe("LabsPage Decision assistance", () => {
       });
       const row = labRow(page, "Decision assistance");
       expect(labToggle(page, "Decision assistance").checked).toBe(expected);
-      expect(row.textContent).toContain("No automatic consumers are connected yet");
-      expect(row.textContent).toContain("decision_evaluate tool is independent");
-      expect(row.textContent?.includes("Opted in;")).toBe(expected);
+      expect(row.textContent).toContain("No features use this setting yet");
+      expect(row.textContent?.includes("Preference saved.")).toBe(expected);
     },
   );
 
@@ -546,7 +545,7 @@ describe("LabsPage Decision assistance", () => {
     await page.updateComplete;
     expect(toggle.checked).toBe(true);
     expect(toggle.hasAttribute("disabled")).toBe(true);
-    expect(labRow(page, "Decision assistance").textContent).not.toContain("Opted in;");
+    expect(labRow(page, "Decision assistance").textContent).not.toContain("Preference saved.");
     if (outcome === "reconnect") {
       gateway.setPhase("reconnecting");
       gateway.setPhase("connected");
@@ -588,7 +587,7 @@ describe("LabsPage Decision assistance", () => {
       const row = labRow(page, "Decision assistance");
       expect(row.querySelector("wa-switch")).toBeNull();
       expect(row.textContent).toContain(
-        state === "loading" ? "Loading saved preference" : "Saved preference is unknown",
+        state === "loading" ? "Loading setting" : "Couldn’t load this setting",
       );
       expect(row.textContent).not.toContain("Default: Disabled");
       expect(runtimeConfig.patch).not.toHaveBeenCalled();

@@ -2559,10 +2559,10 @@ export const en: TranslationMap & {
     decisionAssistance: {
       title: "Decision assistance",
       description:
-        "Save a global opt-in for future automatic Decision experiments. Each participating agent also needs an effective Decision model; an empty agent override disables eligibility. No automatic consumers are connected yet. The explicit decision_evaluate tool is independent of this switch.",
-      optedIn: "Opted in; a Decision model is still required for each participating agent.",
-      loading: "Loading saved preference…",
-      unavailable: "Saved preference is unknown. Reconnect or refresh configuration to try again.",
+        "Enable experimental features powered by Decision models. Requires a Decision model for each agent. No features use this setting yet.",
+      optedIn: "Preference saved.",
+      loading: "Loading setting…",
+      unavailable: "Couldn’t load this setting. Reconnect or refresh to try again.",
       refresh: "Refresh configuration",
     },
     codeMode: {
