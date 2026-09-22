@@ -258,7 +258,6 @@ describe("config schema regressions", () => {
         entries: {
           gemma: {
             experimental: {
-              decisionAssistance: false,
               localModelLean: true,
             },
           },

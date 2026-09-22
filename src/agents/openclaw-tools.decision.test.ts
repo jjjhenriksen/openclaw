@@ -57,7 +57,6 @@ const config: OpenClawConfig = {
   agents: {
     defaults: {
       decisionModel: "fixture/default",
-      experimental: { decisionAssistance: true },
     },
     entries: {
       main: { default: true },
@@ -129,21 +128,10 @@ afterEach(() => {
 });
 
 describe("core decision_evaluate registered flow", () => {
-  it("requires effective selection without Labs or provider-health churn", () => {
+  it("requires effective selection without provider-health churn", () => {
     expect(assembled()).toBeDefined();
     expect(assembled("alternate")).toBeDefined();
     expect(assembled("disabled")).toBeUndefined();
-    expect(
-      assembled("main", {
-        agents: {
-          defaults: {
-            decisionModel: "fixture/default",
-            experimental: { decisionAssistance: true },
-          },
-          entries: { main: { experimental: { decisionAssistance: false } } },
-        },
-      }),
-    ).toBeDefined();
     expect(
       assembled("main", {
         agents: {
@@ -155,7 +143,7 @@ describe("core decision_evaluate registered flow", () => {
     expect(
       assembled("main", {
         agents: {
-          defaults: { experimental: { decisionAssistance: true } },
+          defaults: {},
           entries: { main: {} },
         },
       }),
@@ -165,7 +153,6 @@ describe("core decision_evaluate registered flow", () => {
         agents: {
           defaults: {
             decisionModel: "fixture/default",
-            experimental: { decisionAssistance: true },
           },
           entries: { main: { decisionModel: "" } },
         },
@@ -235,7 +222,6 @@ describe("core decision_evaluate registered flow", () => {
       agents: {
         defaults: {
           decisionModel: "fixture/reconfigured",
-          experimental: { decisionAssistance: true },
         },
       },
     });
@@ -248,7 +234,6 @@ describe("core decision_evaluate registered flow", () => {
       agents: {
         defaults: {
           decisionModel: "fixture/default",
-          experimental: { decisionAssistance: true },
         },
         entries: { main: { decisionModel: "" } },
       },
@@ -263,10 +248,7 @@ describe("core decision_evaluate registered flow", () => {
     const retained = requiredTool();
     setRuntimeConfigSnapshot({
       agents: {
-        defaults: {
-          decisionModel: "fixture/default",
-          experimental: { decisionAssistance: false },
-        },
+        defaults: { decisionModel: "fixture/default" },
       },
     });
     expect((await retained.execute("call", batch)).details).toMatchObject({ status: "ok" });
@@ -355,7 +337,6 @@ describe("core decision_evaluate registered flow", () => {
       agents: {
         defaults: {
           decisionModel: "fixture/reconfigured",
-          experimental: { decisionAssistance: true },
         },
       },
     });

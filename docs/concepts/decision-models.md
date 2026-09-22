@@ -31,11 +31,8 @@ page for its host requirements.
 
 Decision models have a separate **Decision** picker in the Control UI. Selection
 chooses the provider for explicit evaluation and supported consumers. The core
-`decision_evaluate` tool follows that selection plus ordinary tool policy; it is
-independent of Labs. **Settings → Labs → Decision-assisted features** is the
-shared outer eligibility gate only for automatic experimental consumers. Those
-consumers still retain their independent modes, permissions, and policy. Neither
-selection nor Labs activation starts background work or replaces the chat model.
+`decision_evaluate` tool follows that selection plus ordinary tool policy.
+Selection does not start background work or replace the chat model.
 
 ## Choose a provider and model
 
@@ -114,8 +111,8 @@ ONNX's token budget includes the state, instructions, and rubric.
 effective `decisionModel`, subject to normal tool policy, explicit denies, and
 the active harness's capabilities. An unconfigured agent or one with an empty
 per-agent override does not receive the tool. The tool remains eligible whether
-Decision-assisted Labs is on or off; that gate applies only to automatic
-experimental consumers. Provider plugins still need their own normal setup.
+or not other experimental consumers use Decision models. Provider plugins still
+need their own normal setup.
 
 Call it with explicit shared `state` and a `questions` map:
 
@@ -166,9 +163,8 @@ request credentials in chat, or treat a failure as a negative answer.
 Missing credentials, rate limits, overload, and temporary provider errors leave
 the configured tool available and return an unavailable result. Configuration
 changes follow the existing tool/context refresh lifecycle; execution rechecks
-the effective selection and authority. Turning Decision-assisted Labs off does
-not remove or disable a retained explicit tool. Cancellation propagates to the
-shared Decision runtime and must not start fallback work.
+the effective selection and authority. Cancellation propagates to the shared
+Decision runtime and must not start fallback work.
 
 ## Call from a plugin
 
