@@ -28,7 +28,6 @@ import {
 import type { CodexAppServerLiveThreadOwnership } from "./client-thread-owner.js";
 import {
   CodexAppServerRpcError,
-  type CodexAppServerClient,
   isCodexAppServerIndeterminateRequestCancellationError,
   isCodexAppServerPrewriteRequestCancellationError,
 } from "./client.js";
@@ -41,7 +40,6 @@ import {
   skippedCodexNativeCompactionResult,
 } from "./compact-helpers.js";
 import {
-  runExclusiveCodexNativeCompaction,
   watchCodexNativeCompactionCompletion,
 } from "./compact-lifecycle.js";
 import { persistCodexContextCompactionActivity } from "./context-compaction-activity.js";
@@ -64,7 +62,8 @@ import {
   retainSharedCodexAppServerClientIfCurrent,
   type CodexAppServerClientFactory,
 } from "./shared-client.js";
-import { isSameCodexAppServerThreadOwner } from "./thread-ownership.js";
+import { waitForCodexAppServerClientExit } from "./shared-client-lifecycle.js";
+import { isSameCodexAppServerThreadOwner, withCodexAppServerThreadMutationHold } from "./thread-ownership.js";
 import { assertCodexSupervisionThreadLineage } from "./thread-policy.js";
 import { resumeCodexAppServerThread } from "./thread-resume.js";
 
@@ -81,16 +80,6 @@ type CodexAppServerCompactOptions = {
   nativeCompletionTimeoutMs?: number;
   nativeInterruptGraceMs?: number;
 };
-
-/** Keeps same-thread ownership held when bounded temporary cleanup is uncertain. */
-async function waitForCodexAppServerTemporaryClientExit(
-  client: Pick<CodexAppServerClient, "waitForTransportExit">,
-  exited: boolean,
-): Promise<void> {
-  if (!exited) {
-    await client.waitForTransportExit();
-  }
-}
 
 function warnIfIgnoringOpenClawCompactionOverrides(
   params: CompactEmbeddedAgentSessionParams,
@@ -304,12 +293,11 @@ export async function maybeCompactCodexAppServerSession(
       assertCurrent();
     };
     try {
-      return await runExclusiveCodexNativeCompaction(
+      return await withCodexAppServerThreadMutationHold(
         binding.threadId,
-        attempt.abortSignal,
         async (hold) => {
           assertAdmissionCurrent();
-          const boundClientLease = retainSharedCodexAppServerClientByInstanceId(binding.clientId);
+          const boundClientLease = await retainSharedCodexAppServerClientByInstanceId(binding.clientId);
           const client = boundClientLease?.client ?? (await clientFactory({
             startOptions: appServer.start,
             ...(preparedApiKey
@@ -722,21 +710,14 @@ export async function maybeCompactCodexAppServerSession(
               try {
                 await modelOwner?.unregister();
               } finally {
-                const boundClientClosed = boundClientLease?.release() ?? false;
-                // Unsubscribe keeps the native thread loaded. A cold compaction owns
-                // its process and must release the writer before a later turn resumes.
-                if (boundClientClosed && appServer.start.transport === "stdio") {
-                  // Keep the lane fenced until the recorded owner physically exits.
-                  hold(waitForCodexAppServerTemporaryClientExit(client, false));
-                  embeddedAgentLog.info("fenced recorded-owner compaction client until process exit", {
-                    clientId: client.getInstanceId(),
-                    threadId: binding.threadId,
-                  });
+                const ownerExit = boundClientLease?.release();
+                if (ownerExit && appServer.start.transport === "stdio") {
+                  hold(ownerExit);
                 } else if (!boundClientLease && shouldReleaseDefaultLease) {
                   temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
                   if (!temporaryClientExited && appServer.start.transport === "stdio") {
                     // Register the hold before failure results release the thread lane.
-                    hold(waitForCodexAppServerTemporaryClientExit(client, temporaryClientExited));
+                    hold(waitForCodexAppServerClientExit(client));
                   }
                 }
               }
@@ -763,6 +744,7 @@ export async function maybeCompactCodexAppServerSession(
           };
           return codexNativeCompactionResult(attempt, { compacted: true, tokensAfter, details });
         },
+        attempt.abortSignal,
       );
     } catch (error) {
       if (attempt.abortSignal.aborted) {

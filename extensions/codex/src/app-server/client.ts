@@ -241,7 +241,6 @@ export class CodexAppServerClient {
   private modelCatalogRevision = 0;
   private closed = false;
   private transportExited = false;
-  private readonly transportExit: Promise<void>;
   private nativeExecutionObserved = false;
   private closeError: Error | undefined;
   private serverVersion: string | undefined;
@@ -261,9 +260,6 @@ export class CodexAppServerClient {
 
   private constructor(child: CodexAppServerTransport) {
     this.child = child;
-    this.transportExit = new Promise<void>((resolve) => {
-      child.once("exit", () => resolve());
-    });
     this.closeMessageReader = listenCodexAppServerLines(
       child.stdout,
       (line) => {
@@ -788,14 +784,6 @@ export class CodexAppServerClient {
     const onExit = () => handler(this);
     this.child.once("exit", onExit);
     return () => this.child.off?.("exit", onExit);
-  }
-
-  /** Waits for physical transport exit after bounded cleanup has timed out. */
-  async waitForTransportExit(): Promise<void> {
-    if (this.transportExited) {
-      return;
-    }
-    await this.transportExit;
   }
 
   /** Closes the transport without waiting for process/socket shutdown. */

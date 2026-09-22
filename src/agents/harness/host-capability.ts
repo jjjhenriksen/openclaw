@@ -240,14 +240,13 @@ export function createAgentHarnessHostCapabilities(params: {
   // Only a Gateway captured at admission participates in host liveness.
   // A supplied resolver that currently returns no context is a retired binding;
   // only a genuinely absent resolver is exempt from the Gateway liveness fence.
-  const hasBoundGatewayContext =
-    getGatewayContextResolver(attempt.admittedRunContext) !== undefined;
+  const boundGatewayContext = getGatewayContextResolver(attempt.admittedRunContext);
   function assertActive() {
     if (
       !active ||
       attempt.admittedRunContext.operationalRunInstance !== operationalRunInstance ||
       getAdmittedRunDelegatedAuthority(attempt.admittedRunContext) !== delegatedAuthority ||
-      (hasBoundGatewayContext && callerIdentity?.gatewayContextResolver?.() === undefined)
+      (boundGatewayContext && callerIdentity?.gatewayContextResolver?.() === undefined)
     ) {
       throw inactiveError("agent harness host capability is no longer active");
     }
@@ -431,7 +430,7 @@ export function createAgentHarnessHostCapabilities(params: {
       if (
         attempt.abortSignal?.aborted ||
         attempt.admittedRunContext.operationalRunInstance !== operationalRunInstance ||
-        (hasBoundGatewayContext && callerIdentity?.gatewayContextResolver?.() === undefined)
+        (boundGatewayContext && callerIdentity?.gatewayContextResolver?.() === undefined)
       ) {
         throw inactiveError("agent harness retained host policy is no longer active");
       }

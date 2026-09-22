@@ -23,6 +23,7 @@ import type { CodexAppServerStartOptions } from "./config.js";
 import { codexNativeSubagentMonitorRuntime } from "./native-subagent-monitor.js";
 import type { CodexServerNotification } from "./protocol.js";
 import { resetCodexTestBindingStore } from "./session-binding.test-helpers.js";
+import { waitForCodexAppServerClientExit } from "./shared-client-lifecycle.js";
 import {
   captureCodexAppServerClientLifetime,
   captureSharedCodexAppServerCatalogLifetime,
@@ -282,6 +283,49 @@ export function registerSharedClientLifetimeTests(
     });
     expect(harness.process.stdin.destroyed).toBe(true);
   });
+  it.each(["current", "retired", "closed"])(
+    "acquires the recorded %s owner through physical lifetime",
+    async (state) => {
+      const harness = createClientHarness({ autoEmitExit: false });
+      vi.spyOn(CodexAppServerClient, "start").mockResolvedValue(harness.client);
+      const acquire = getLeasedSharedCodexAppServerClient({ timeoutMs: 1_000 });
+      await sendInitializeResult(harness, "openclaw/0.151.0 (Linux; test)");
+      const client = await acquire;
+      if (state !== "current") {
+        expect(retireSharedCodexAppServerClientIfCurrent(client)).toEqual({
+          activeLeases: 1,
+          closed: false,
+        });
+      }
+      if (state === "closed") {
+        releaseLeasedSharedCodexAppServerClient(client);
+      }
+      let acquired = false;
+      const retaining = retainSharedCodexAppServerClientByInstanceId(client.getInstanceId()).then(
+        (lease) => {
+          acquired = true;
+          return lease;
+        },
+      );
+      await Promise.resolve();
+      if (state === "closed") {
+        expect(client.getCloseError()).toBeDefined();
+        expect(acquired).toBe(false);
+        harness.emitExit();
+        await expect(retaining).resolves.toBeUndefined();
+      } else {
+        const retained = await retaining;
+        expect(retained?.client).toBe(client);
+        expect(releaseLeasedSharedCodexAppServerClient(client)).toBe(true);
+        expect(harness.stdinDestroyed).toBe(false);
+        const released = retained?.release();
+        expect(harness.stdinDestroyed).toBe(state === "retired");
+        harness.emitExit();
+        await released;
+      }
+      await expect(waitForCodexAppServerClientExit(client)).resolves.toBeUndefined();
+    },
+  );
 
   it("retains ordinary native children when compaction created the cached monitor first", async () => {
     await withStateDirEnv("openclaw-codex-compaction-retention-", async ({ tempRoot }) => {
@@ -560,9 +604,9 @@ export function registerSharedClientLifetimeTests(
     await sendInitializeResult(harness, "openclaw/0.151.0 (Linux; test)");
     const client = await acquire;
     const assertCurrent = captureCodexAppServerClientLifetime(client, "native-process");
-    const retained = retainSharedCodexAppServerClientByInstanceId(client.getInstanceId());
+    const retained = await retainSharedCodexAppServerClientByInstanceId(client.getInstanceId());
     expect(assertCurrent).not.toThrow();
-    retained?.release();
+    await retained?.release();
     expect(releaseLeasedSharedCodexAppServerClient(client)).toBe(true);
     expect(assertCurrent).not.toThrow();
     const catalogCurrent = captureSharedCodexAppServerCatalogLifetime(client);

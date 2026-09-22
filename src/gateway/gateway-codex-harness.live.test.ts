@@ -16,6 +16,11 @@ import type {
 import { verifyCodexNativeSubagentBridgeProbe } from "../../test/helpers/gateway-codex-harness-native-subagent.js";
 import {
   createCodexHarnessLiveInstance,
+  readCompletedCodexCompactionStats,
+  extractChatFinalText,
+  readCodexAppServerPluginApprovalId,
+  extractAssistantTexts,
+  formatAssistantTextPreview,
   createCodexHarnessEventCapture,
   readCodexNativeUsageSnapshots,
   CODEX_HARNESS_CONTEXT_EVENT_PREFIXES,
@@ -322,41 +327,6 @@ function logCodexLiveStep(step: string, details?: Record<string, unknown>): void
   }
   const suffix = details && Object.keys(details).length > 0 ? ` ${JSON.stringify(details)}` : "";
   console.error(`[gateway-codex-live] ${step}${suffix}`);
-}
-
-function readCompletedCodexCompactionStats(events: readonly CapturedAgentEvent[]): {
-  count: number;
-  durationMs?: number;
-  startedCount: number;
-} {
-  const startedItemIds = new Set<string>();
-  const startedAtByItemId = new Map<string, number>();
-  let count = 0;
-  let durationMs = 0;
-  let measuredCount = 0;
-  for (const event of events) {
-    if (event.stream !== "compaction") {
-      continue;
-    }
-    const itemId = event.data?.itemId;
-    if (event.data?.phase === "start" && typeof itemId === "string") {
-      startedItemIds.add(itemId);
-      if (event.ts !== undefined) {
-        startedAtByItemId.set(itemId, event.ts);
-      }
-      continue;
-    }
-    if (event.data?.phase !== "end" || event.data?.completed !== true) {
-      continue;
-    }
-    count += 1;
-    const startedAt = typeof itemId === "string" ? startedAtByItemId.get(itemId) : undefined;
-    if (startedAt !== undefined && event.ts !== undefined) {
-      durationMs += Math.max(0, event.ts - startedAt);
-      measuredCount += 1;
-    }
-  }
-  return { count, startedCount: startedItemIds.size, ...(measuredCount > 0 ? { durationMs } : {}) };
 }
 
 function logCodexHarnessTurnMeasurement(label: string, result: CodexHarnessAgentResult): void {
@@ -1013,85 +983,6 @@ async function waitForChatAgentRunOk(client: GatewayClient, runId: string): Prom
   if (result?.status !== "ok") {
     throw new Error(`agent.wait failed for ${runId}: ${JSON.stringify(result)}`);
   }
-}
-
-function extractChatFinalText(event: EventFrame, runId: string): string | undefined {
-  if (event.event !== "chat") {
-    return undefined;
-  }
-  const payload = event.payload;
-  if (!payload || typeof payload !== "object") {
-    return undefined;
-  }
-  const record = payload as Record<string, unknown>;
-  if (record.runId !== runId || record.state !== "final") {
-    return undefined;
-  }
-  const message = record.message;
-  if (!message || typeof message !== "object") {
-    return undefined;
-  }
-  const messageRecord = message as Record<string, unknown>;
-  if (typeof messageRecord.text === "string" && messageRecord.text.trim()) {
-    return messageRecord.text;
-  }
-  const content = Array.isArray(messageRecord.content) ? messageRecord.content : [];
-  return content
-    .map((entry) =>
-      entry && typeof entry === "object" ? (entry as Record<string, unknown>).text : undefined,
-    )
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-    .join("\n")
-    .trim();
-}
-
-function readCodexAppServerPluginApprovalId(event: EventFrame): string | undefined {
-  if (event.event !== "plugin.approval.requested") {
-    return undefined;
-  }
-  const payload = event.payload;
-  if (!payload || typeof payload !== "object") {
-    return undefined;
-  }
-  const record = payload as Record<string, unknown>;
-  const request = record.request;
-  if (!request || typeof request !== "object") {
-    return undefined;
-  }
-  const requestRecord = request as Record<string, unknown>;
-  if (requestRecord.pluginId !== "codex") {
-    return undefined;
-  }
-  return typeof record.id === "string" && record.id ? record.id : undefined;
-}
-
-function extractAssistantTexts(messages: unknown[]): string[] {
-  const texts: string[] = [];
-  for (const entry of messages) {
-    if (!entry || typeof entry !== "object") {
-      continue;
-    }
-    if ((entry as { role?: unknown }).role !== "assistant") {
-      continue;
-    }
-    const text = extractFirstTextBlock(entry);
-    if (typeof text === "string" && text.trim().length > 0) {
-      texts.push(text);
-    }
-  }
-  return texts;
-}
-
-function formatAssistantTextPreview(texts: string[], maxChars = 800): string {
-  const combined = texts.join("\n\n").trim();
-  if (!combined) {
-    return "<none>";
-  }
-  if (combined.length <= maxChars) {
-    return combined;
-  }
-  const half = Math.floor(maxChars / 2);
-  return `${combined.slice(0, half)}\n...\n${combined.slice(-half)}`;
 }
 
 async function readCodexHarnessCompactionCount(params: {
