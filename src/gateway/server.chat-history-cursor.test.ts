@@ -159,7 +159,6 @@ function renderedMessages(messages: readonly unknown[]): unknown[] {
 }
 
 afterEach(async () => {
-  // Join projection reads before closing their databases and the Gateway fixture.
   await disposeSessionReadContexts();
   for (const directory of tempDirs.dirs) {
     await closeOpenClawAgentDatabasesAsync(directory);
