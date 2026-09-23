@@ -1,9 +1,11 @@
 import { once } from "node:events";
+import { setImmediate } from "node:timers/promises";
 import type {
   AgentHarnessTaskRecord,
   AgentHarnessTaskRuntime,
 } from "openclaw/plugin-sdk/agent-harness-task-runtime";
 import { withStateDirEnv } from "openclaw/plugin-sdk/test-env";
+import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import { expect, it, vi } from "vitest";
 import {
   codexCatalogResidentHomeKey,
@@ -37,6 +39,10 @@ import {
 } from "./shared-client.js";
 import { createClientHarness } from "./test-support.js";
 import { CodexAdoptedThreadActiveError } from "./thread-lifecycle-errors.js";
+import {
+  releaseCodexAppServerBindingSubscription,
+  retainCodexAppServerBindingSubscription,
+} from "./thread-ownership.js";
 import { CODEX_APP_SERVER_VERSION } from "./version.js";
 
 /** Register under the shared-client suite so its auth mocks and cleanup remain authoritative. */
@@ -150,6 +156,50 @@ export function registerSharedClientLifetimeTests(
         expect(live.size).toBe(0);
       }
       expect(startSpy).toHaveBeenCalledTimes(3);
+    },
+  );
+  it.each([true, false])(
+    "preserves binding cleanup ownership (caller retains client: %s)",
+    async (callerRetains) => {
+      const harness = createClientHarness();
+      vi.spyOn(CodexAppServerClient, "start").mockResolvedValue(harness.client);
+      const acquiring = getLeasedSharedCodexAppServerClient({ timeoutMs: 1_000 });
+      await sendInitializeResult(harness, "openclaw/0.151.0 (Linux; test)");
+      const client = await acquiring;
+      const unsubscribe = createDeferred<void>();
+      const entered = createDeferred<void>();
+      await retainCodexAppServerBindingSubscription(client, "previous-thread", {
+        release: async () => {
+          retireSharedCodexAppServerClientIfCurrent(client);
+          entered.resolve();
+          await unsubscribe.promise;
+        },
+      });
+      let settled = false;
+      const releasing = releaseCodexAppServerBindingSubscription(
+        {
+          threadId: "previous-thread",
+          clientId: client.getInstanceId(),
+        },
+        { retainedClientId: callerRetains ? client.getInstanceId() : undefined },
+      ).then(() => {
+        settled = true;
+      });
+      try {
+        await entered.promise;
+        unsubscribe.resolve();
+        // All fixture release work is promise-based; yield past its microtask continuations.
+        await setImmediate();
+        expect(settled, "only the caller-held client lease may bypass graceful retirement").toBe(
+          callerRetains,
+        );
+        expect(client.getCloseError()).toBeUndefined();
+      } finally {
+        unsubscribe.resolve();
+        releaseLeasedSharedCodexAppServerClient(client);
+        await releasing;
+      }
+      expect(client.getCloseError()).toBeDefined();
     },
   );
 

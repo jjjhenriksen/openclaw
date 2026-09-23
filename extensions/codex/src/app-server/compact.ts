@@ -295,9 +295,13 @@ export async function maybeCompactCodexAppServerSession(
     try {
       return await withCodexAppServerThreadMutationHold(
         binding.threadId,
-        async (hold) => {
+        async (hold, start) => {
           assertAdmissionCurrent();
           const boundClientLease = await retainSharedCodexAppServerClientByInstanceId(binding.clientId);
+          if (attempt.abortSignal.aborted) {
+            await boundClientLease?.release();
+            attempt.abortSignal.throwIfAborted();
+          }
           const client = boundClientLease?.client ?? (await clientFactory({
             startOptions: appServer.start,
             ...(preparedApiKey
@@ -308,6 +312,7 @@ export async function maybeCompactCodexAppServerSession(
             config: attempt.config,
             assertCurrent: assertAdmissionCurrent,
           }));
+          start();
           embeddedAgentLog.info("selected codex app-server compaction client", {
             clientId: client.getInstanceId(),
             recordedOwnerReused: Boolean(boundClientLease),
@@ -714,11 +719,11 @@ export async function maybeCompactCodexAppServerSession(
                 if (ownerExit && appServer.start.transport === "stdio") {
                   hold(ownerExit);
                 } else if (!boundClientLease && shouldReleaseDefaultLease) {
-                  temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
-                  if (!temporaryClientExited && appServer.start.transport === "stdio") {
-                    // Register the hold before failure results release the thread lane.
+                  if (appServer.start.transport === "stdio") {
+                    // Shutdown can reject before physical exit; keep successors fenced either way.
                     hold(waitForCodexAppServerClientExit(client));
                   }
+                  temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
                 }
               }
             }

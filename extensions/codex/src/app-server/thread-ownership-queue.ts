@@ -20,7 +20,7 @@ export async function withCodexAppServerThreadMutation<T>(
 /** Queued cancellation settles the caller without letting successors overtake its lane. */
 export async function withCodexAppServerThreadMutationHold<T>(
   threadId: string,
-  run: (hold: (until: Promise<unknown>) => void) => Promise<T>,
+  run: (hold: (until: Promise<unknown>) => void, start: () => void) => Promise<T>,
   signal?: AbortSignal,
 ): Promise<T> {
   signal?.throwIfAborted();
@@ -28,22 +28,22 @@ export async function withCodexAppServerThreadMutationHold<T>(
   const abort = () =>
     reject(signal?.reason instanceof Error ? signal.reason : new Error("compaction aborted"));
   signal?.addEventListener("abort", abort, { once: true });
+  const start = () => signal?.removeEventListener("abort", abort);
   const queued = nativeThreadOwners.enqueue(`thread:${threadId}`, async () => {
-    signal?.removeEventListener("abort", abort);
     let heldUntil: Promise<unknown> | undefined;
     try {
       signal?.throwIfAborted();
       resolve(
         await run((until) => {
           heldUntil ??= until;
-        }),
+        }, start),
       );
     } catch (error) {
       reject(error);
     }
     await heldUntil;
   });
-  void queued.catch(reject);
+  void queued.finally(start).catch(reject);
   return promise;
 }
 

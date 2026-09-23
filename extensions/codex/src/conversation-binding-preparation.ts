@@ -371,7 +371,10 @@ async function writeThreadBindingFromResponse(
       const { assertCurrent } = requestOptions();
       // Keep the old identity visible until its sole native subscription is
       // released; a concurrent owner must not adopt it between clear and cleanup.
-      await releaseCodexAppServerBindingSubscription(current, { assertCurrent });
+      await releaseCodexAppServerBindingSubscription(current, {
+        assertCurrent,
+        retainedClientId: client.getInstanceId(),
+      });
     }
     requestOptions();
     const committed = await params.bindingStore.mutate(

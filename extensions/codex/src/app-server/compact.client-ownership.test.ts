@@ -116,10 +116,11 @@ function sendCompactionCompleted(
   send({ method: "turn/completed", params: { threadId, turn } });
 }
 
-it.each(["warm", "closed", "detached", "unconfirmed-close"])(
+it.each(["warm", "closed", "detached", "unconfirmed-close", "rejected-close"])(
   "supports repeated compaction and the next turn (owner %s)",
   async (ownerState) => {
-    const ownerClosed = ownerState === "closed" || ownerState === "unconfirmed-close";
+    const closeFails = ownerState === "unconfirmed-close" || ownerState === "rejected-close";
+    const ownerClosed = ownerState === "closed" || closeFails;
     const sessionKey = "agent:main:compact-owner";
     const owners = new Map<string, number>();
     const operations: { client: number; method: string; threadId?: string }[] = [];
@@ -173,11 +174,13 @@ it.each(["warm", "closed", "detached", "unconfirmed-close"])(
         }
       });
       transports.push(harness);
-      if (ownerState === "unconfirmed-close" && index === 1) {
-        vi.spyOn(harness.client, "closeAndWait").mockResolvedValueOnce({
-          exited: false,
-          cleanup: "uncertain",
-        });
+      if (closeFails && index === 1) {
+        const close = vi.spyOn(harness.client, "closeAndWait");
+        if (ownerState === "rejected-close") {
+          close.mockRejectedValueOnce(new Error("catalog worker shutdown failed"));
+        } else {
+          close.mockResolvedValueOnce({ exited: false, cleanup: "uncertain" });
+        }
       }
       return harness.client;
     });
@@ -232,10 +235,26 @@ it.each(["warm", "closed", "detached", "unconfirmed-close"])(
         { bindingStore: testCodexAppServerBindingStore, pluginConfig },
       );
 
-      if (ownerState === "unconfirmed-close") {
-        await expect(compaction).rejects.toThrow("Codex compaction client did not exit");
+      if (closeFails) {
+        await expect(compaction).rejects.toThrow(
+          ownerState === "rejected-close"
+            ? "catalog worker shutdown failed"
+            : "Codex compaction client did not exit",
+        );
         expect(owners.get("owned-thread")).toBe(1);
         expect(operations.some(({ method }) => method === "thread/compact/start")).toBe(true);
+        let queueEntered = false;
+        const queued = withCodexAppServerThreadMutation("owned-thread", async () => {
+          queueEntered = true;
+        });
+        try {
+          await setImmediate();
+          expect(queueEntered).toBe(false);
+        } finally {
+          transports[1]?.emitExit();
+          await queued;
+        }
+        expect(queueEntered).toBe(true);
         return;
       }
       const result = await compaction;
@@ -522,3 +541,69 @@ it.each([
     releaseLeasedSharedCodexAppServerClient(nextOwner);
   },
 );
+
+it("cancels compaction waiting for a closing owner without releasing its thread queue", async () => {
+  const harness = createOwnershipHarness(() => {}, false);
+  transports.push(harness);
+  const start = vi.spyOn(CodexAppServerClient, "start").mockResolvedValue(harness.client);
+  const owner = await getLeasedSharedCodexAppServerClient({
+    startOptions: runtime.start,
+    agentDir,
+    authProfileId: null,
+  });
+  const sessionKey = "agent:main:closing-owner";
+  registerCodexTestSessionIdentity(sessionFile, "closing-session", sessionKey, "main");
+  await writeCodexAppServerBinding(sessionFile, {
+    threadId: "closing-thread",
+    cwd: directory,
+    clientId: owner.getInstanceId(),
+  });
+  releaseLeasedSharedCodexAppServerClient(owner);
+  owner.close();
+  const entered = createDeferred<void>();
+  const retain = sharedClientRuntime.retainSharedCodexAppServerClientByInstanceId;
+  vi.spyOn(sharedClientRuntime, "retainSharedCodexAppServerClientByInstanceId").mockImplementation(
+    (id) => {
+      const work = retain(id);
+      entered.resolve();
+      return work;
+    },
+  );
+  const abort = new AbortController();
+  const compaction = maybeCompactCodexAppServerSession(
+    {
+      sessionId: "closing-session",
+      sessionKey,
+      sessionFile,
+      agentDir,
+      workspaceDir: directory,
+      trigger: "manual",
+      abortSignal: abort.signal,
+    },
+    { bindingStore: testCodexAppServerBindingStore, pluginConfig },
+  );
+  let queueEntered = false;
+  let queued: Promise<void> | undefined;
+  try {
+    await entered.promise;
+    abort.abort();
+    expect(
+      await Promise.race([compaction, setImmediate().then(() => "still pending")]),
+    ).toMatchObject({
+      ok: false,
+      compacted: false,
+      reason: "codex app-server compaction aborted while waiting to start",
+    });
+    queued = withCodexAppServerThreadMutation("closing-thread", async () => {
+      queueEntered = true;
+    });
+    await setImmediate();
+    expect(queueEntered).toBe(false);
+    expect(start).toHaveBeenCalledTimes(1);
+  } finally {
+    harness.emitExit();
+    await Promise.allSettled([compaction, queued]);
+  }
+  expect(queueEntered).toBe(true);
+  expect(start).toHaveBeenCalledTimes(1);
+});

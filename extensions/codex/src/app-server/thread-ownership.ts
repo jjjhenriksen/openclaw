@@ -114,7 +114,7 @@ export async function rollbackCodexAppServerBindingSubscription(
 /** Releases only the physical client and native thread recorded by the displaced binding owner. */
 export async function releaseCodexAppServerBindingSubscription(
   binding: Pick<CodexAppServerThreadBinding, "threadId" | "clientId">,
-  options: { allowUntracked?: boolean; assertCurrent?: () => void } = {},
+  options: { allowUntracked?: boolean; assertCurrent?: () => void; retainedClientId?: string } = {},
 ): Promise<void> {
   options.assertCurrent?.();
   const clientLease = await retainSharedCodexAppServerClientByInstanceId(binding.clientId);
@@ -154,8 +154,10 @@ export async function releaseCodexAppServerBindingSubscription(
       );
     }
   } finally {
+    // A same-client caller releases its outer lease only after this cleanup returns.
     await clientLease.release(
-      !isCodexAppServerLiveThreadClaimed(clientLease.client, binding.threadId),
+      binding.clientId !== options.retainedClientId &&
+        !isCodexAppServerLiveThreadClaimed(clientLease.client, binding.threadId),
     );
   }
 }
