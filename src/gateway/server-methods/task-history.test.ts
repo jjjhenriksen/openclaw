@@ -32,6 +32,7 @@ import { resetTaskFlowRegistryForTests } from "../../tasks/task-runtime.test-hel
 import { withOpenClawTestState } from "../../test-utils/openclaw-test-state.js";
 import { loadGatewaySessionEntryReadOnly } from "../session-utils.js";
 import { createHistoryReadContext } from "./chat-history.test-helpers.js";
+import { disposeSessionReadContexts } from "./sessions-read-cache.test-support.js";
 import { identifiedClient, runTaskHandler } from "./tasks.test-helpers.js";
 
 type ReadTaskHistory = NonNullable<AgentHarness["taskHistory"]>["read"];
@@ -77,9 +78,12 @@ async function withHistoryState(run: () => Promise<void>) {
     await withOpenClawTestState({ scenario: "minimal" }, async () => {
       setActivePluginRegistry(createEmptyPluginRegistry());
       resetTaskRegistryForTests();
-      // Let the fixture drain descendants and close its databases before the
-      // plugin registry is restored; an inner reset would close live borrowers.
-      await run();
+      try {
+        await run();
+      } finally {
+        // Stop projections before the fixture drains descendants and closes its databases.
+        await disposeSessionReadContexts();
+      }
     });
   } finally {
     restoreActivePluginRegistrySnapshot(registry);
