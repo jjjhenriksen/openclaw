@@ -72,17 +72,18 @@ function createNativeTask(runId = "synthetic-child-1") {
 }
 
 async function withHistoryState(run: () => Promise<void>) {
-  await withOpenClawTestState({ scenario: "minimal" }, async () => {
-    const registry = captureActivePluginRegistrySnapshot();
-    setActivePluginRegistry(createEmptyPluginRegistry());
-    resetTaskRegistryForTests();
-    try {
-      await run();
-    } finally {
+  const registry = captureActivePluginRegistrySnapshot();
+  try {
+    await withOpenClawTestState({ scenario: "minimal" }, async () => {
+      setActivePluginRegistry(createEmptyPluginRegistry());
       resetTaskRegistryForTests();
-      restoreActivePluginRegistrySnapshot(registry);
-    }
-  });
+      // Let the fixture drain descendants and close its databases before the
+      // plugin registry is restored; an inner reset would close live borrowers.
+      await run();
+    });
+  } finally {
+    restoreActivePluginRegistrySnapshot(registry);
+  }
 }
 
 async function createRequester(actorId: string, incognito = false) {
