@@ -8,60 +8,14 @@ import {
   GATEWAY_STORE_TEST_HELLO,
   stubGatewayStoreTestGlobals,
 } from "../app/gateway-store.test-support.ts";
-import type { ApplicationGateway } from "../app/gateway.ts";
 import { createTestGatewayClient } from "../test-helpers/gateway-client.ts";
 import { setAvatarGatewayOrigin } from "./identity-avatar-context.ts";
+import {
+  createGateway,
+  createProgressCard,
+  sessionKey,
+} from "./session-progress-cards.test-support.ts";
 import { sessionProgressCardsForGateway } from "./session-progress-cards.ts";
-
-const sessionKey = "agent:main:progress-date-boundary";
-
-function createProgressCard(updatedAt: number) {
-  return { sessionKey, revision: 1, updatedAt, markdown: "Progress update" };
-}
-
-function createGateway(mainSessionKey?: string, mainKey = "main") {
-  const request = vi.fn();
-  const features = {
-    methods: ["progressCard.get", "progressCard.put"],
-  };
-  let onEvent: Parameters<ApplicationGateway["subscribeEvents"]>[0] | undefined;
-  let onSnapshot: Parameters<ApplicationGateway["subscribe"]>[0] | undefined;
-  const gateway = {
-    snapshot: {
-      client: { request },
-      phase: "connected",
-      hello: {
-        features,
-        snapshot: { sessionDefaults: { mainSessionKey, mainKey, defaultAgentId: "main" } },
-      },
-    },
-    subscribe: (listener: NonNullable<typeof onSnapshot>) => {
-      onSnapshot = listener;
-      return () => {
-        onSnapshot = undefined;
-      };
-    },
-    subscribeEvents: (listener: NonNullable<typeof onEvent>) => {
-      onEvent = listener;
-      return () => {
-        onEvent = undefined;
-      };
-    },
-  } as unknown as ApplicationGateway;
-  return {
-    gateway,
-    request,
-    features,
-    snapshotChanged: () => onSnapshot?.(gateway.snapshot),
-    emit: (event: Parameters<NonNullable<typeof onEvent>>[0]) => onEvent?.(event),
-    emitChange: (changedSessionKey: string, revision: number | null) =>
-      onEvent?.({
-        type: "event",
-        event: "progressCard.changed",
-        payload: { sessionKey: changedSessionKey, revision },
-      }),
-  };
-}
 
 describe("session progress card lifetimes", () => {
   it("ends a lifetime only after an accepted clear, not revisions, errors, or idle detach", async () => {
@@ -726,93 +680,6 @@ describe("session progress card Gateway response boundary", () => {
     expect(store.getLifetime({ sessionKey: ordinaryKey })).toBe(lifetime);
     expect(request).toHaveBeenCalledTimes(2);
     store.unwatch(owner);
-  });
-
-  it("coalesces numbered change events while a progress read is pending", async () => {
-    const { gateway, request, emitChange } = createGateway("agent:main:main");
-    const target = { sessionKey };
-    const initial = { ...createProgressCard(1), markdown: "Initial" };
-    const refreshed = { ...initial, revision: 3, markdown: "Latest" };
-    const refresh = createDeferred<{ card: typeof refreshed }>();
-    request.mockResolvedValueOnce({ card: initial }).mockReturnValueOnce(refresh.promise);
-
-    const store = sessionProgressCardsForGateway(gateway);
-    const owner = {};
-    store.watch(owner, [target]);
-    onTestFinished(() => store.unwatch(owner));
-
-    await expect(store.load(target)).resolves.toEqual(initial);
-    emitChange(sessionKey, 2);
-    emitChange(sessionKey, 3);
-    expect(request).toHaveBeenCalledTimes(2);
-
-    refresh.resolve({ card: refreshed });
-    await expect(store.load(target)).resolves.toEqual(refreshed);
-    expect(request).toHaveBeenCalledTimes(2);
-  });
-
-  it("performs one follow-up read when an in-flight response is older than the latest event", async () => {
-    const { gateway, request, emitChange } = createGateway("agent:main:main");
-    const target = { sessionKey };
-    const initial = { ...createProgressCard(1), markdown: "Initial" };
-    const stale = { ...initial, revision: 2, markdown: "Stale" };
-    const latest = { ...initial, revision: 3, markdown: "Latest" };
-    const refresh = createDeferred<{ card: typeof stale }>();
-    request
-      .mockResolvedValueOnce({ card: initial })
-      .mockReturnValueOnce(refresh.promise)
-      .mockResolvedValueOnce({ card: latest });
-
-    const store = sessionProgressCardsForGateway(gateway);
-    const owner = {};
-    store.watch(owner, [target]);
-    onTestFinished(() => store.unwatch(owner));
-
-    await expect(store.load(target)).resolves.toEqual(initial);
-    emitChange(sessionKey, 2);
-    emitChange(sessionKey, 3);
-    refresh.resolve({ card: stale });
-
-    await vi.waitFor(() => expect(store.get(target)).toEqual(latest));
-    expect(request).toHaveBeenCalledTimes(3);
-  });
-
-  it("does not let a late conditional dismissal overwrite a newer coalesced read", async () => {
-    const { gateway, request, emitChange } = createGateway("agent:main:main");
-    const target = { sessionKey };
-    const initial = { ...createProgressCard(1), markdown: "Initial" };
-    const stale = { ...initial, revision: 2, markdown: "Stale" };
-    const latest = { ...initial, revision: 3, markdown: "Latest" };
-    const refresh = createDeferred<{ card: typeof latest }>();
-    const dismissal = createDeferred<{ card: typeof stale }>();
-    request
-      .mockResolvedValueOnce({ card: initial })
-      .mockReturnValueOnce(refresh.promise)
-      .mockReturnValueOnce(dismissal.promise);
-
-    const store = sessionProgressCardsForGateway(gateway);
-    const owner = {};
-    store.watch(owner, [target]);
-    onTestFinished(() => {
-      refresh.resolve({ card: latest });
-      dismissal.resolve({ card: stale });
-      store.unwatch(owner);
-    });
-
-    const displayed = await store.load(target);
-    if (!displayed) {
-      throw new Error("Expected the initial progress card");
-    }
-    emitChange(sessionKey, 2);
-    const clearing = store.dismiss(target, displayed);
-    emitChange(sessionKey, 3);
-
-    refresh.resolve({ card: latest });
-    await vi.waitFor(() => expect(store.get(target)).toEqual(latest));
-
-    dismissal.resolve({ card: stale });
-    await expect(clearing).resolves.toBe(false);
-    expect(store.get(target)).toEqual(latest);
   });
 
   it.each([

@@ -320,6 +320,7 @@ function createStore(gateway: ApplicationGateway): SessionProgressCardStore {
       entry.generation === generation &&
       connection.isCurrent(scope) &&
       gateway.snapshot.client === scope.client;
+    let ignoredOvertakenNull = false;
     const request = scope.client
       .request<ProgressCardGetResult>(
         PROGRESS_CARD_GET_METHOD,
@@ -329,6 +330,13 @@ function createStore(gateway: ApplicationGateway): SessionProgressCardStore {
         const card = parseProgressCard(response, entry.wireKey);
         if (!current()) {
           return null;
+        }
+        if (card === null && entry.pendingRefreshRevision !== undefined) {
+          // Absence has no revision to prove it includes an overlapping event.
+          // Keep presentation intact until a read started after that event settles.
+          ignoredOvertakenNull = true;
+          entry.dirty = true;
+          return entry.card ?? null;
         }
         entry.card = card;
         acceptLifetime(resolved.key, entry.target, card);
@@ -350,7 +358,8 @@ function createStore(gateway: ApplicationGateway): SessionProgressCardStore {
           if (entries.get(resolved.key) === entry) {
             remember(resolved.key, entry);
             const needsRefresh =
-              entry.pendingRefreshRevision !== undefined && !satisfiesPendingRefresh(entry);
+              ignoredOvertakenNull ||
+              (entry.pendingRefreshRevision !== undefined && !satisfiesPendingRefresh(entry));
             delete entry.pendingRefreshRevision;
             // Coalesced invalidations survive a hidden watch that resumes before
             // this read settles, but only one follow-up read is needed.
@@ -663,9 +672,18 @@ function createStore(gateway: ApplicationGateway): SessionProgressCardStore {
           ? entry.generation === generation && entry.dismissalGeneration === dismissalGeneration
           : entry.card?.revision === card.revision
       ) {
+        // Reads in the captured write generation can predate its commit even if
+        // the event arrives later. Keep newer event-started reads unless overtaken.
+        const retireRead =
+          entry.load !== undefined &&
+          (entry.generation === generation || entry.pendingRefreshRevision !== undefined);
+        if (retireRead) {
+          entry.generation += 1;
+          queueRefresh(entry, null);
+        }
         entry.card = resultCard;
         acceptLifetime(resolved.key, entry.target, resultCard);
-        entry.dirty = false;
+        entry.dirty = retireRead;
         delete entry.error;
         remember(resolved.key, entry);
         notify();

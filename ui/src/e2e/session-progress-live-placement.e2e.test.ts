@@ -3,6 +3,7 @@ import path from "node:path";
 import { MAX_DATE_TIMESTAMP_MS } from "@openclaw/normalization-core/number-coercion";
 import type { Locator, Page } from "playwright";
 import { expect, it } from "vitest";
+import type { SessionProgressCardController } from "../components/session-progress-card-controller.ts";
 import { takeControlUiViewportScreenshot } from "../test-helpers/control-ui-e2e-screenshot.ts";
 import {
   controlUiBundledGatewayUrl,
@@ -93,42 +94,102 @@ suite.define(() => {
         await gateway.emitGatewayEvent("progressCard.changed", { revision: 2, sessionKey });
         await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(2);
         await gateway.emitGatewayEvent("progressCard.changed", { revision: 3, sessionKey });
-        await page.waitForTimeout(100);
-        expect(await gateway.getRequests("progressCard.get")).toHaveLength(2);
-
+        // Mock WebSocket events dispatch synchronously, before the deferred reply.
+        // Its rendered revision below is the completion barrier for the burst.
         await gateway.resolveDeferred("progressCard.get", {
           card: cardFor(3, "Revision three"),
         });
         await expect.poll(() => card.textContent()).toContain("Revision three");
         expect(await gateway.getRequests("progressCard.get")).toHaveLength(2);
 
+        // An overtaken absence must not end the card or its disclosure choice.
+        if ((await card.getAttribute("open")) !== null) {
+          await card.locator("summary").click();
+        }
+        await expect.poll(() => card.getAttribute("open")).toBeNull();
+        await gateway.deferNext("progressCard.get");
+        await gateway.emitGatewayEvent("progressCard.changed", { revision: 4, sessionKey });
+        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(3);
+        await gateway.emitGatewayEvent("progressCard.changed", { revision: 5, sessionKey });
+        await gateway.deferNext("progressCard.get");
+        await gateway.resolveDeferred("progressCard.get", { card: null });
+        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(4);
+        expect(await card.isVisible()).toBe(true);
+        expect(await card.textContent()).toContain("Revision three");
+        expect(await card.getAttribute("open")).toBeNull();
+        await gateway.resolveDeferred("progressCard.get", { card: cardFor(5, "Revision five") });
+        await expect.poll(() => card.textContent()).toContain("Revision five");
+        expect(await card.getAttribute("open")).toBeNull();
+
         await gateway.deferNext("progressCard.put");
         if ((await card.getAttribute("open")) === null) {
           await card.locator("summary").click();
         }
         await expect.poll(() => card.getAttribute("open")).not.toBeNull();
+        // A conditional mismatch resolves false without a toast. Observe the actual
+        // click's controller promise, without substituting its result or store work.
+        const dismissal = await card.evaluateHandle((element) => {
+          const { progressCard } = element.closest("openclaw-chat-pane")! as unknown as {
+            progressCard: SessionProgressCardController;
+          };
+          const dismiss = progressCard.dismiss;
+          let resolve!: (dismissed: boolean) => void;
+          let reject!: (error: unknown) => void;
+          const completed = new Promise<boolean>((onResolve, onReject) => {
+            resolve = onResolve;
+            reject = onReject;
+          });
+          progressCard.dismiss = (displayedCard) => {
+            progressCard.dismiss = dismiss;
+            const result = dismiss(displayedCard);
+            void result.then(resolve, reject);
+            return result;
+          };
+          return { completed };
+        });
         await card.getByRole("button", { name: "Dismiss progress card" }).click();
         await expect.poll(() => gateway.getRequests("progressCard.put")).toHaveLength(1);
 
         await gateway.deferNext("progressCard.get");
-        await gateway.emitGatewayEvent("progressCard.changed", { revision: 4, sessionKey });
-        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(3);
+        await gateway.emitGatewayEvent("progressCard.changed", { revision: 6, sessionKey });
+        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(5);
         await gateway.resolveDeferred("progressCard.get", {
-          card: cardFor(4, "Revision four"),
+          card: cardFor(6, "Revision six"),
         });
-        await expect.poll(() => card.textContent()).toContain("Revision four");
+        await expect.poll(() => card.textContent()).toContain("Revision six");
 
         await gateway.resolveDeferred("progressCard.put", {
-          card: cardFor(3, "Stale dismissal"),
+          card: cardFor(5, "Stale dismissal"),
         });
-        await page.waitForTimeout(100);
-        await expect.poll(() => card.textContent()).toContain("Revision four");
+        expect(await dismissal.evaluate(({ completed }) => completed)).toBe(false);
+        await dismissal.dispose();
+        await expect.poll(() => card.textContent()).toContain("Revision six");
         expect(await card.textContent()).not.toContain("Stale dismissal");
+
+        // Conversely, a pre-clear GET must not restore a successfully dismissed card.
+        await gateway.deferNext("progressCard.get");
+        await gateway.emitGatewayEvent("progressCard.changed", { revision: 7, sessionKey });
+        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(6);
+        await gateway.deferNext("progressCard.put");
+        await card.getByRole("button", { name: "Dismiss progress card" }).click();
+        await expect.poll(() => gateway.getRequests("progressCard.put")).toHaveLength(2);
+        await gateway.deferNext("progressCard.get");
+        await gateway.resolveDeferred("progressCard.put", { card: null });
+        await expect.poll(() => card.count()).toBe(0);
+        // Delivery may trail the committed reply; the earlier read is already retired.
+        await gateway.emitGatewayEvent("progressCard.changed", { revision: null, sessionKey });
+        await gateway.resolveDeferred("progressCard.get", { card: cardFor(6, "Before clear") });
+        await expect.poll(() => gateway.getRequests("progressCard.get")).toHaveLength(7);
+        expect(await card.count()).toBe(0);
+        await gateway.resolveDeferred("progressCard.get", { card: null });
+        expect(await card.count()).toBe(0);
 
         console.info(
           "progress-overlap-proof",
           JSON.stringify({
-            convergedRevision: 4,
+            convergedRevision: 6,
+            overtakenNullPreservedCardAndDisclosure: true,
+            preClearReadDidNotRestoreCard: true,
             getRequests: (await gateway.getRequests("progressCard.get")).length,
             lateDismissalRejected: true,
             overlappingRevisionThreeRequests: 1,
