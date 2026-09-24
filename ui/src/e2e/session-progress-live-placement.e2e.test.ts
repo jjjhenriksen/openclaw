@@ -103,7 +103,10 @@ suite.define(() => {
         expect(await gateway.getRequests("progressCard.get")).toHaveLength(2);
 
         await gateway.deferNext("progressCard.put");
-        await card.locator("summary").click();
+        if ((await card.getAttribute("open")) === null) {
+          await card.locator("summary").click();
+        }
+        await expect.poll(() => card.getAttribute("open")).not.toBeNull();
         await card.getByRole("button", { name: "Dismiss progress card" }).click();
         await expect.poll(() => gateway.getRequests("progressCard.put")).toHaveLength(1);
 
