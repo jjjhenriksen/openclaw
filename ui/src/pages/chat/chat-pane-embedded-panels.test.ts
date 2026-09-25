@@ -331,7 +331,7 @@ describe("chat pane embedded panels", () => {
         Promise.resolve(Response.json({ available: true, sizeBytes: 574_000 })),
       );
       // PDF previews fetch bytes separately; an unavailable preview must not refetch metadata.
-      const contentRequested = createDeferred<void>();
+      const contentRequested = createDeferred();
       const fetchContent = vi.fn<typeof fetch>(async () => {
         contentRequested.resolve();
         return new Response(null, { status: 503 });
