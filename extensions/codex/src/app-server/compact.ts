@@ -33,15 +33,11 @@ import {
 } from "./client.js";
 import {
   clearContextEngineProjectionBeforeNativeCompaction,
-  codexNativeCompactionResult,
-  failedCodexThreadBindingCompactionResult,
   isCodexThreadNotFoundError,
   isSameNativeCompactionBinding,
-  skippedCodexNativeCompactionResult,
 } from "./compact-helpers.js";
-import {
-  watchCodexNativeCompactionCompletion,
-} from "./compact-lifecycle.js";
+import { watchCodexNativeCompactionCompletion } from "./compact-lifecycle.js";
+import { codexNativeCompactionResult, failedCodexThreadBindingCompactionResult, skippedCodexNativeCompactionResult } from "./compact-result.js";
 import { persistCodexContextCompactionActivity } from "./context-compaction-activity.js";
 import { getCodexInferenceThreadQualification } from "./inference-routing.js";
 import { readCodexRuntimeModelId } from "./model-runtime.js";
