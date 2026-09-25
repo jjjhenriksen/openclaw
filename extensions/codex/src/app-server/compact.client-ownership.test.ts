@@ -9,7 +9,7 @@ import {
 } from "./client-runtime.js";
 import { CodexAppServerClient } from "./client.js";
 import { threadStartResult } from "./codex-app-server.test-fixtures.js";
-import { maybeCompactCodexAppServerSession } from "./compact.js";
+import { compactCodexSessionWithTestHost as maybeCompactCodexAppServerSession } from "./compact.test-support.js";
 import { resolveCodexAppServerRuntimeOptions } from "./config.js";
 import {
   registerCodexTestSessionIdentity,

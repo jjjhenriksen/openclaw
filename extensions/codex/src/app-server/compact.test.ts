@@ -9,6 +9,7 @@ import {
 import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import { patchSessionEntry, upsertSessionEntry } from "openclaw/plugin-sdk/session-store-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { applyCodexAppServerAuthProfile } from "./auth-bridge.js";
 import {
   consumeCodexAppServerLiveThread,
   retainCodexAppServerLiveThread,
@@ -505,6 +506,7 @@ describe("maybeCompactCodexAppServerSession", () => {
     expect(factory).toHaveBeenCalledWith(
       expect.objectContaining({
         preparedAuth: { kind: "api-key", apiKey: "prepared-platform-key" },
+        authRequirement: "api-key",
       }),
     );
     expect(factory.mock.calls[0]?.[0]).not.toHaveProperty("authProfileId");
@@ -552,15 +554,33 @@ describe("maybeCompactCodexAppServerSession", () => {
     expect(factory).not.toHaveBeenCalled();
   });
 
-  it("uses the native supervision runtime and auth for supervised bindings", async () => {
-    const fake = createFakeCodexClient({ retainedThreadId: null });
-    const factory = vi.fn(async () => fake.client);
-    const sessionFile = await writeSupervisedTestBinding(tempDir, {
-      authProfileId: "openai:binding-profile",
-    });
-
-    const result = requireCompactResult(
-      await maybeCompactCodexAppServerSession(
+  it.each([
+    [true, "api-key"],
+    [true, "subscription"],
+    [false, "api-key"],
+    [false, "subscription"],
+  ] as const)(
+    "keeps native auth ownership (supervision: %s, outer: %s)",
+    async (supervised, authRequirement) => {
+      const fake = createFakeCodexClient({ retainedThreadId: null });
+      const factory = vi.fn<CodexAppServerClientFactory>(async (options) => {
+        if (options?.authRequirement) {
+          fake.request.mockResolvedValueOnce({
+            account: { type: authRequirement === "api-key" ? "chatgpt" : "apiKey" },
+          });
+        }
+        // Exercise the real startup verifier against the conflicting native account.
+        await applyCodexAppServerAuthProfile({
+          client: fake.client,
+          authProfileId: options?.authProfileId,
+          authRequirement: options?.authRequirement,
+        });
+        return fake.client;
+      });
+      const sessionFile = supervised
+        ? await writeSupervisedTestBinding(tempDir, { authProfileId: "openai:binding-profile" })
+        : await writeTestBinding();
+      const pending = maybeCompactCodexAppServerSession(
         {
           sessionId: "session-1",
           sessionKey: "agent:main:session-1",
@@ -568,27 +588,48 @@ describe("maybeCompactCodexAppServerSession", () => {
           workspaceDir: tempDir,
           trigger: "manual",
           authProfileId: "openai:outer-profile",
+          runtimeAuthPlan: {
+            providerForAuth: "openai",
+            authProfileProviderForAuth: "openai",
+            harnessAuthProvider: "openai",
+            selectedAuthMode: authRequirement,
+            modelRoute: {
+              provider: "openai",
+              modelId: "gpt-5.5",
+              api: "openai-responses",
+              baseUrl: "https://api.openai.com/v1",
+              authRequirement,
+              requestTransportOverrides: "none",
+            },
+          },
         },
         {
           clientFactory: factory,
-          pluginConfig: { supervision: { enabled: true } },
+          pluginConfig: supervised
+            ? { supervision: { enabled: true } }
+            : { appServer: { homeScope: "user" } },
         },
-      ),
-    );
-
-    expect(result.ok).toBe(true);
-    expect(factory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        authProfileId: null,
-        startOptions: expect.objectContaining({ homeScope: "user" }),
-      }),
-    );
-    expect(fake.request.mock.calls.map(([method]) => method)).toEqual([
-      "thread/resume",
-      "thread/compact/start",
-      "thread/unsubscribe",
-    ]);
-  });
+      );
+      if (supervised) {
+        await expect(pending).resolves.toMatchObject({ ok: true, compacted: true });
+      } else {
+        await expect(pending).rejects.toThrow(/Codex (Platform|subscription) route requires/);
+      }
+      expect(factory).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authProfileId: null,
+          authRequirement: supervised ? undefined : authRequirement,
+          startOptions: expect.objectContaining({ homeScope: "user" }),
+        }),
+      );
+      expect(factory.mock.calls[0]?.[0]).not.toHaveProperty("preparedAuth");
+      expect(fake.request.mock.calls.map(([method]) => method)).toEqual(
+        supervised
+          ? ["thread/resume", "thread/compact/start", "thread/unsubscribe"]
+          : ["account/read"],
+      );
+    },
+  );
 
   it("fails closed when a supervised binding is no longer enabled", async () => {
     const fake = createFakeCodexClient();

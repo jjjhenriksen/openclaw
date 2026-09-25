@@ -1,3 +1,5 @@
+import { setImmediate } from "node:timers/promises";
+import { runWithAsyncWorkResources } from "openclaw/plugin-sdk/agent-harness-tool-runtime";
 import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import { describe, expect, it, vi } from "vitest";
 import { createCodexTestBindingStore } from "./session-binding.test-helpers.js";
@@ -90,9 +92,19 @@ describe("Codex thread ownership across module copies", () => {
     vi.resetModules();
     const successor = await import("./thread-ownership.js");
     const release = createDeferred<void>();
-    const failed = owner.withCodexAppServerThreadMutationHold("held-thread", async (hold) => {
-      hold(release.promise);
-      throw new Error("cleanup uncertain");
+    const releaseAuthority = vi.fn();
+    const authorityReleased = createDeferred<void>();
+    const failed = runWithAsyncWorkResources(async (onAcquired) => {
+      onAcquired({
+        release: () => {
+          releaseAuthority();
+          authorityReleased.resolve();
+        },
+      });
+      return await owner.withCodexAppServerThreadMutationHold("held-thread", async (hold) => {
+        hold(release.promise);
+        throw new Error("cleanup uncertain");
+      });
     });
     await expect(failed).rejects.toThrow("cleanup uncertain");
 
@@ -103,13 +115,16 @@ describe("Codex thread ownership across module copies", () => {
         successorRan = true;
       },
     );
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 20);
-    });
-    expect(successorRan).toBe(false);
-
-    release.resolve();
-    await successorMutation;
+    try {
+      await setImmediate();
+      expect(successorRan).toBe(false);
+      expect(releaseAuthority).not.toHaveBeenCalled();
+    } finally {
+      release.resolve();
+      await successorMutation;
+      await authorityReleased.promise;
+    }
+    expect(releaseAuthority).toHaveBeenCalledOnce();
     expect(successorRan).toBe(true);
   });
 });

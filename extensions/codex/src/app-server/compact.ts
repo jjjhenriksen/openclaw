@@ -2,15 +2,12 @@ import {
   embeddedAgentLog,
   resolveCompactionTimeoutMs,
   type AgentHarnessCompactParams,
-  type CompactEmbeddedAgentSessionParams,
   type EmbeddedAgentCompactResult,
 } from "openclaw/plugin-sdk/agent-harness-runtime";
 import { runWithAsyncWorkResources } from "openclaw/plugin-sdk/agent-harness-tool-runtime";
 import { resolveAgentDir } from "openclaw/plugin-sdk/agent-runtime";
-import { createDedupeCache } from "openclaw/plugin-sdk/dedupe-runtime";
 import { coerceErrorMessage } from "openclaw/plugin-sdk/error-runtime";
 import type { SandboxContext } from "openclaw/plugin-sdk/sandbox";
-import { asOptionalRecord } from "openclaw/plugin-sdk/string-coerce-runtime";
 import { isIncognitoSessionKey } from "../incognito-session.js";
 import {
   CODEX_APP_SERVER_UNSUBSCRIBE_TIMEOUT_MS,
@@ -33,11 +30,16 @@ import {
 } from "./client.js";
 import {
   clearContextEngineProjectionBeforeNativeCompaction,
+  warnIfIgnoringOpenClawCompactionOverrides,
   isCodexThreadNotFoundError,
   isSameNativeCompactionBinding,
 } from "./compact-helpers.js";
 import { watchCodexNativeCompactionCompletion } from "./compact-lifecycle.js";
-import { codexNativeCompactionResult, failedCodexThreadBindingCompactionResult, skippedCodexNativeCompactionResult } from "./compact-result.js";
+import {
+  codexNativeCompactionResult,
+  failedCodexThreadBindingCompactionResult,
+  skippedCodexNativeCompactionResult,
+} from "./compact-result.js";
 import { persistCodexContextCompactionActivity } from "./context-compaction-activity.js";
 import { getCodexInferenceThreadQualification } from "./inference-routing.js";
 import { readCodexRuntimeModelId } from "./model-runtime.js";
@@ -52,20 +54,20 @@ import {
   type CodexAppServerBindingIdentity,
   type CodexAppServerBindingStore,
 } from "./session-binding.js";
+import { waitForCodexAppServerClientExit } from "./shared-client-lifecycle.js";
 import {
   createIsolatedCodexAppServerClient,
   retainSharedCodexAppServerClientByInstanceId,
   retainSharedCodexAppServerClientIfCurrent,
   type CodexAppServerClientFactory,
 } from "./shared-client.js";
-import { waitForCodexAppServerClientExit } from "./shared-client-lifecycle.js";
-import { isSameCodexAppServerThreadOwner, withCodexAppServerThreadMutationHold } from "./thread-ownership.js";
+import {
+  isSameCodexAppServerThreadOwner,
+  withCodexAppServerThreadMutationHold,
+} from "./thread-ownership.js";
 import { assertCodexSupervisionThreadLineage } from "./thread-policy.js";
 import { resumeCodexAppServerThread } from "./thread-resume.js";
 
-// ttlMs: 0 retains keys until the 4,096-entry LRU cap evicts them, after which a
-// previously suppressed warning can intentionally emit again.
-const warnedIgnoredCompactionOverrides = createDedupeCache({ ttlMs: 0, maxSize: 4096 });
 const CODEX_NATIVE_COMPACTION_INTERRUPT_GRACE_MS = 30_000;
 type CodexAppServerCompactOptions = {
   bindingStore: CodexAppServerBindingStore;
@@ -76,35 +78,6 @@ type CodexAppServerCompactOptions = {
   nativeCompletionTimeoutMs?: number;
   nativeInterruptGraceMs?: number;
 };
-
-function warnIfIgnoringOpenClawCompactionOverrides(
-  params: CompactEmbeddedAgentSessionParams,
-): void {
-  const ignoredConfig = readIgnoredCompactionOverridePaths(params);
-  if (ignoredConfig.length === 0) {
-    return;
-  }
-  const warningKey = ignoredConfig.join("\0");
-  if (warnedIgnoredCompactionOverrides.check(warningKey)) {
-    return;
-  }
-  embeddedAgentLog.warn(
-    "ignoring OpenClaw compaction overrides for Codex app-server compaction; Codex uses native server-side compaction",
-    {
-      sessionId: params.sessionId,
-      sessionKey: params.sessionKey,
-      ignoredConfig,
-    },
-  );
-}
-
-function readIgnoredCompactionOverridePaths(params: CompactEmbeddedAgentSessionParams): string[] {
-  const compaction = asOptionalRecord(params.config?.agents?.defaults?.compaction);
-  return ["model", "thinkingLevel", "provider"].flatMap((field) => {
-    const value = compaction?.[field];
-    return typeof value === "string" && value.trim() ? [`agents.defaults.compaction.${field}`] : [];
-  });
-}
 
 /**
  * Starts native Codex compaction for a manually requested bound session, or
@@ -253,11 +226,12 @@ export async function maybeCompactCodexAppServerSession(
   }
   const shouldReleaseDefaultLease = !options.clientFactory;
   const clientFactory = options.clientFactory ?? createIsolatedCodexAppServerClient;
-  const runtimeAuthPlan = params.runtimeAuthPlan ?? params.runtimePlan?.auth;
+  const runtimeAuthPlan = usesSupervisionConnection
+    ? undefined
+    : (params.runtimeAuthPlan ?? params.runtimePlan?.auth);
   // A user-home app-server keeps its native Codex account; injecting a prepared key
   // would rewrite the CODEX_HOME auth that Codex CLI and Desktop share.
   const usesPreparedApiKey =
-    !usesSupervisionConnection &&
     appServer.start.homeScope !== "user" &&
     runtimeAuthPlan?.modelRoute?.authRequirement === "api-key";
   const preparedApiKey = usesPreparedApiKey ? params.resolvedApiKey?.trim() : undefined;
@@ -293,21 +267,25 @@ export async function maybeCompactCodexAppServerSession(
         binding.threadId,
         async (hold, start) => {
           assertAdmissionCurrent();
-          const boundClientLease = await retainSharedCodexAppServerClientByInstanceId(binding.clientId);
+          const boundClientLease = await retainSharedCodexAppServerClientByInstanceId(
+            binding.clientId,
+          );
           if (attempt.abortSignal.aborted) {
             await boundClientLease?.release();
             attempt.abortSignal.throwIfAborted();
           }
-          const client = boundClientLease?.client ?? (await clientFactory({
-            startOptions: appServer.start,
-            ...(preparedApiKey
-              ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
-              : { authProfileId: connection.clientAuthProfileId }),
-            authRequirement: runtimeAuthPlan?.modelRoute?.authRequirement,
-            agentDir: attempt.agentDir,
-            config: attempt.config,
-            assertCurrent: assertAdmissionCurrent,
-          }));
+          const client =
+            boundClientLease?.client ??
+            (await clientFactory({
+              startOptions: appServer.start,
+              ...(preparedApiKey
+                ? { preparedAuth: { kind: "api-key" as const, apiKey: preparedApiKey } }
+                : { authProfileId: connection.clientAuthProfileId }),
+              authRequirement: runtimeAuthPlan?.modelRoute?.authRequirement,
+              agentDir: attempt.agentDir,
+              config: attempt.config,
+              assertCurrent: assertAdmissionCurrent,
+            }));
           start();
           embeddedAgentLog.info("selected codex app-server compaction client", {
             clientId: client.getInstanceId(),
@@ -373,7 +351,7 @@ export async function maybeCompactCodexAppServerSession(
                 exitTimeoutMs: 5_000,
                 forceKillDelayMs: 250,
               });
-            temporaryClientExited = transportStopped.exited;
+              temporaryClientExited = transportStopped.exited;
               if (appServer.start.transport === "stdio") {
                 if (transportStopped.exited) {
                   return;
@@ -719,7 +697,8 @@ export async function maybeCompactCodexAppServerSession(
                     // Shutdown can reject before physical exit; keep successors fenced either way.
                     hold(waitForCodexAppServerClientExit(client));
                   }
-                  temporaryClientExited = temporaryClientExited && (await client.closeAndWait()).exited;
+                  temporaryClientExited =
+                    temporaryClientExited && (await client.closeAndWait()).exited;
                 }
               }
             }

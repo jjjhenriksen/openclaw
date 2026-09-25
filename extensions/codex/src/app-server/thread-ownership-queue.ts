@@ -1,3 +1,4 @@
+import { runWithAsyncWorkResources } from "openclaw/plugin-sdk/agent-harness-tool-runtime";
 import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import { resolveGlobalSingleton } from "openclaw/plugin-sdk/global-singleton";
 import { KeyedAsyncQueue } from "openclaw/plugin-sdk/keyed-async-queue";
@@ -23,28 +24,35 @@ export async function withCodexAppServerThreadMutationHold<T>(
   run: (hold: (until: Promise<unknown>) => void, start: () => void) => Promise<T>,
   signal?: AbortSignal,
 ): Promise<T> {
-  signal?.throwIfAborted();
-  const { promise, resolve, reject } = createDeferred<T>();
-  const abort = () =>
-    reject(signal?.reason instanceof Error ? signal.reason : new Error("compaction aborted"));
-  signal?.addEventListener("abort", abort, { once: true });
-  const start = () => signal?.removeEventListener("abort", abort);
-  const queued = nativeThreadOwners.enqueue(`thread:${threadId}`, async () => {
-    let heldUntil: Promise<unknown> | undefined;
-    try {
-      signal?.throwIfAborted();
-      resolve(
-        await run((until) => {
-          heldUntil ??= until;
-        }, start),
-      );
-    } catch (error) {
-      reject(error);
-    }
-    await heldUntil;
+  return await runWithAsyncWorkResources(async (onAcquired) => {
+    signal?.throwIfAborted();
+    const { promise, resolve, reject } = createDeferred<T>();
+    const abort = () =>
+      reject(signal?.reason instanceof Error ? signal.reason : new Error("compaction aborted"));
+    signal?.addEventListener("abort", abort, { once: true });
+    const start = () => signal?.removeEventListener("abort", abort);
+    const queued = nativeThreadOwners.enqueue(`thread:${threadId}`, async () => {
+      let heldUntil: Promise<unknown> | undefined;
+      try {
+        signal?.throwIfAborted();
+        resolve(
+          await run((until) => {
+            heldUntil ??= until;
+          }, start),
+        );
+      } catch (error) {
+        reject(error);
+      }
+      await heldUntil;
+    });
+    onAcquired({
+      release: async () => {
+        await Promise.allSettled([queued]);
+      },
+    });
+    void queued.finally(start).catch(reject);
+    return promise;
   });
-  void queued.finally(start).catch(reject);
-  return promise;
 }
 
 /** Serializes bound turns and retirement so detach cannot unsubscribe an active turn. */
