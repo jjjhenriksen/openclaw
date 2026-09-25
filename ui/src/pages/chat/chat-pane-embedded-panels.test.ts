@@ -331,7 +331,11 @@ describe("chat pane embedded panels", () => {
         Promise.resolve(Response.json({ available: true, sizeBytes: 574_000 })),
       );
       // PDF previews fetch bytes separately; an unavailable preview must not refetch metadata.
-      const fetchContent = vi.fn<typeof fetch>(async () => new Response(null, { status: 503 }));
+      const contentRequested = createDeferred<void>();
+      const fetchContent = vi.fn<typeof fetch>(async () => {
+        contentRequested.resolve();
+        return new Response(null, { status: 503 });
+      });
       vi.stubGlobal(
         "fetch",
         vi.fn<typeof fetch>((input, init) => {
@@ -410,6 +414,7 @@ describe("chat pane embedded panels", () => {
           expect(mount.querySelector("openclaw-chat-video-player")).not.toBeNull();
           expect(fetchContent).not.toHaveBeenCalled();
         } else {
+          await contentRequested.promise;
           expect(fetchContent).toHaveBeenCalledExactlyOnceWith(
             expect.stringContaining("/__openclaw__/assistant-media?"),
             expect.objectContaining({ credentials: "same-origin", redirect: "error" }),
