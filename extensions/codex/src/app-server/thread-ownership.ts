@@ -1,3 +1,5 @@
+import { runWithAsyncWorkResources } from "openclaw/plugin-sdk/agent-harness-tool-runtime";
+import { createDeferred } from "openclaw/plugin-sdk/extension-shared";
 import {
   CODEX_APP_SERVER_UNSUBSCRIBE_TIMEOUT_MS,
   closeCodexStartupClientBestEffort,
@@ -19,9 +21,45 @@ import type {
 import { retainSharedCodexAppServerClientByInstanceId } from "./shared-client.js";
 import { withCodexAppServerThreadMutation } from "./thread-ownership-queue.js";
 
+/** Queued cancellation settles the caller without letting successors overtake its lane. */
+export async function withCodexAppServerThreadMutationHold<T>(
+  threadId: string,
+  run: (hold: (until: Promise<unknown>) => void, start: () => void) => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  return await runWithAsyncWorkResources(async (onAcquired) => {
+    signal?.throwIfAborted();
+    const { promise, resolve, reject } = createDeferred<T>();
+    const abort = () =>
+      reject(signal?.reason instanceof Error ? signal.reason : new Error("compaction aborted"));
+    signal?.addEventListener("abort", abort, { once: true });
+    const start = () => signal?.removeEventListener("abort", abort);
+    const queued = withCodexAppServerThreadMutation(threadId, async () => {
+      let heldUntil: Promise<unknown> | undefined;
+      try {
+        signal?.throwIfAborted();
+        resolve(
+          await run((until) => {
+            heldUntil ??= until;
+          }, start),
+        );
+      } catch (error) {
+        reject(error);
+      }
+      await heldUntil;
+    });
+    onAcquired({
+      release: async () => {
+        await Promise.allSettled([queued]);
+      },
+    });
+    void queued.finally(start).catch(reject);
+    return promise;
+  });
+}
+
 export {
   withCodexAppServerThreadMutation,
-  withCodexAppServerThreadMutationHold,
   withCodexConversationThreadActivity,
 } from "./thread-ownership-queue.js";
 
