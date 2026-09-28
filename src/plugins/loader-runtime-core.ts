@@ -3,6 +3,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeAgentToolResultMiddlewareRuntimeIds } from "./agent-tool-result-middleware.js";
 import { createUnavailableRuntime } from "./api-builder.js";
 import { resolvePluginCandidateInstallOwner } from "./candidate-install-owner.js";
+import type { PluginCapabilityCatalogHostContext } from "./capability-catalog-context.types.js";
 import { resolveEffectivePluginActivationState } from "./config-state.js";
 import { isPluginEnabledByDefaultForPlatform } from "./default-enablement.js";
 import { isPluginRegistryCacheEnabled } from "./loader-cache.js";
@@ -47,7 +48,11 @@ import { setPluginRuntimeLoadContext } from "./runtime/load-context.js";
 import type { PluginRuntime } from "./runtime/types.js";
 import { hasKind } from "./slots.js";
 
-type PluginLoadInput = { source: string; signature: string; config: PreparedPluginConfig };
+type PluginLoadInput = {
+  source: string;
+  signature: string | undefined;
+  config: PreparedPluginConfig;
+};
 const registryInputs = new WeakMap<PluginRegistry, Map<string, PluginLoadInput>>();
 
 /** Captured JSON inputs ignore object key order, but preserve array order and values. */
@@ -90,7 +95,7 @@ function createDeferredGatewayNodesRuntime(runtime: PluginRuntime): PluginRuntim
 }
 
 export type NativePluginLoadBindings = Pick<PluginRuntime, "modelAuth" | "modelConfig"> & {
-  capabilityCatalogContext: NonNullable<PluginLoadOptions["capabilityCatalogContext"]>;
+  capabilityCatalogContext: PluginCapabilityCatalogHostContext;
 };
 
 function createCapabilityCatalogContextResolver(
@@ -185,7 +190,6 @@ export function loadOpenClawPluginsCore(
                 subagent: options.runtimeOptions?.subagent ?? borrowedSubagent,
                 nodes: options.runtimeOptions?.nodes ?? borrowedNodes,
               },
-              loadPluginModule,
             });
     const capabilityCatalogContext =
       options.capabilityCatalogContext ??
@@ -281,11 +285,16 @@ export function loadOpenClawPluginsCore(
         context.normalized.entries[normalizePluginPolicyId(manifest.id)] ?? {};
       const preparedConfig: PreparedPluginConfig = { input: JSON.stringify(pluginConfig) };
       const degradedPlugin = findActiveDegradedPlugin(manifest.id);
-      const signature = JSON.stringify([
+      // Control UI builds apply through the UI-only plugins.controlUi.reload owner. An in-place
+      // `openclaw plugins build` rewrites controlUi paths and the byte-derived schemaCacheKey, which
+      // must not force an unrelated backend replacement. Declaration presence still decides
+      // whether the browser catalog serves this record, and configSchema is compared by value.
+      const { controlUi, schemaCacheKey: _schemaCacheKey, ...runtimeManifest } = manifest;
+      const signatureInputs = [
         candidate.source,
         candidate.origin,
         [installOwner, installOwner ? context.installRecords[installOwner] : undefined],
-        manifest,
+        { ...runtimeManifest, controlUi: controlUi !== undefined },
         activation,
         entryPolicy,
         degradedPlugin && degradedPluginMatchesRoot(degradedPlugin, candidate.rootDir)
@@ -301,7 +310,26 @@ export function loadOpenClawPluginsCore(
         validateOnly,
         options.toolDiscovery === true,
         options.mode,
-      ]);
+      ];
+      let signature: string | undefined;
+      try {
+        signature = JSON.stringify(signatureInputs);
+      } catch (error) {
+        // A malformed external schema must reach the validation diagnostic, not abort
+        // sibling loading while preparing an optional runtime-retention signature.
+        if (
+          !(error instanceof RangeError) ||
+          candidate.origin === "bundled" ||
+          prepareRuntimePluginConfig({
+            candidate,
+            manifestRecord: manifest,
+            context,
+            preparedConfig,
+          }).ok
+        ) {
+          throw error;
+        }
+      }
       inputs.set(manifest.id, { source: candidate.source, signature, config: preparedConfig });
       const previous = options.previousRegistry?.plugins.find(
         (record) => record.id === manifest.id,
@@ -309,6 +337,7 @@ export function loadOpenClawPluginsCore(
       const previousInput =
         options.previousRegistry && registryInputs.get(options.previousRegistry)?.get(manifest.id);
       if (
+        signature !== undefined &&
         previous &&
         previousInput &&
         !replacedIds.has(manifest.id) &&
@@ -453,7 +482,13 @@ export function loadOpenClawPluginsCore(
         ),
       });
     }
-    maybeThrowOnPluginLoadError(registry, options.throwOnLoadError, retained);
+    maybeThrowOnPluginLoadError(
+      registry,
+      options.throwOnLoadError,
+      retained,
+      options.previousRegistry,
+      replacedIds,
+    );
     if (context.shouldActivate && options.mode !== "validate") {
       const failedPlugins = registry.plugins.filter((plugin) => plugin.failedAt != null);
       if (failedPlugins.length > 0) {

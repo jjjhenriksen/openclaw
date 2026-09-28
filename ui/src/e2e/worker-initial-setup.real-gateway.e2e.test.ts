@@ -203,6 +203,8 @@ suite.define(() => {
             changed: false,
             verifyStable: async () => {},
             verifyLocalStable: async () => {},
+            publishStagedResult: async () => {},
+            discardPreparedStagedResult: async () => {},
           };
         },
         stop: async () => {},
@@ -228,14 +230,17 @@ suite.define(() => {
               };
             },
             acquireTurnCredential: async () => ({ ...credential(), sessionId }),
-            acknowledgeCredentialDelivery: () => true,
+            acknowledgeCredentialDelivery: async () => true,
             startTunnel: async () => tunnel,
           },
           resolveWorkspace: async () => ({ kind: "local", path: workspace }),
           reconcileActivePlacement: async () => {
             throw new Error("unexpected recovery");
           },
-          redispatchReclaimed: async () => {
+          waitForAdmissionNode: async () => {
+            throw new Error("unexpected runtime refresh");
+          },
+          redispatchPlacement: async () => {
             throw new Error("unexpected redispatch");
           },
           workspaceOperations: createWorkerWorkspaceOperationCoordinator(),

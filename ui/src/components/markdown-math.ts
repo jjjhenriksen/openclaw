@@ -1,5 +1,76 @@
 import katex from "katex";
+import "katex/dist/katex.min.css";
 import type { MarkdownIt, StateBlock, StateInline } from "markdown-it";
+
+// Generated KaTeX output shares the Markdown sanitizer; authored HTML stays escaped.
+const markdownMathTags = [
+  "math",
+  "annotation",
+  "menclose",
+  "merror",
+  "mfrac",
+  "mi",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mroot",
+  "mrow",
+  "ms",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msup",
+  "msubsup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "semantics",
+  "svg",
+  "path",
+  "line",
+  "use",
+];
+const markdownMathAttrs = [
+  "aria-hidden",
+  "aria-level",
+  "xmlns",
+  // KaTeX MathML carries semantic variants and barless binomial fractions.
+  "mathvariant",
+  "linethickness",
+  "fence",
+  "viewBox",
+  "width",
+  "height",
+  "x",
+  "y",
+  "d",
+  "fill",
+  "stroke",
+  "stroke-width",
+  "focusable",
+  "preserveAspectRatio",
+  "style",
+];
+
+function removeAuthoredProgressStyle(node: Node) {
+  // Authored progress markup must not inherit KaTeX geometry styles.
+  if (node instanceof HTMLElement && node.localName === "progress") {
+    node.removeAttribute("style");
+  }
+}
+
+export const markdownMathSanitizer = {
+  tags: markdownMathTags,
+  attrs: markdownMathAttrs,
+  afterSanitizeAttributes: removeAuthoredProgressStyle,
+};
 
 const DISPLAY_DELIMITERS = [
   { open: "$$", close: "$$", displayMode: true },
@@ -12,14 +83,10 @@ const INLINE_DELIMITERS = [
   { open: "$", close: "$", displayMode: false },
 ] as const;
 
-const MAX_MATH_SCAN = 4096;
+export const MAX_MATH_SCAN = 4096;
 const MAX_MATH_EXPRESSIONS = 200;
 let renderedMathExpressions = 0;
 const BARE_URL_RE = /(?:https?:\/\/|www\.)[^\s<]*/giu;
-
-export function resetMarkdownMathBudget() {
-  renderedMathExpressions = 0;
-}
 
 function renderMath(source: string, displayMode: boolean): string {
   if (renderedMathExpressions >= MAX_MATH_EXPRESSIONS) {
@@ -117,12 +184,18 @@ function parseDisplayMath(state: StateBlock, startLine: number, endLine: number,
     latex = afterOpen.slice(0, sameLineClose).trim();
   } else {
     const lines: string[] = [afterOpen];
+    const scanEnd = Math.min(state.src.length, lineStart + delimiter.open.length + MAX_MATH_SCAN);
     let closeLine = -1;
     for (let lineIndex = startLine + 1; lineIndex < endLine; lineIndex += 1) {
       const currentStart = state.bMarks[lineIndex]! + state.tShift[lineIndex]!;
+      // Bound the complete block search, not each line independently: repeated
+      // unmatched openers must not rescan the entire remaining document.
+      if (currentStart >= scanEnd) {
+        break;
+      }
       const current = state.src.slice(currentStart, state.eMarks[lineIndex]!);
       const close = findUnescapedMathDelimiter(current, delimiter.close, 0);
-      if (close >= 0) {
+      if (close >= 0 && currentStart + close < scanEnd) {
         if (current.slice(close + delimiter.close.length).trim()) {
           return false;
         }
@@ -184,6 +257,9 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
 }
 
 export function installMarkdownMath(markdownParser: MarkdownIt) {
+  markdownParser.core.ruler.before("normalize", "math_budget", () => {
+    renderedMathExpressions = 0;
+  });
   markdownParser.block.ruler.before("paragraph", "math_block", parseDisplayMath, {
     alt: ["paragraph"],
   });

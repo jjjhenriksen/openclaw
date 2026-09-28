@@ -1,14 +1,24 @@
 import fs from "node:fs";
+import path from "node:path";
 import { expect, vi, type Mock } from "vitest";
 import {
   createConfigIO,
   setRuntimeConfigSnapshotRefreshHandler,
+  transformConfigFile,
   writeConfigFile,
 } from "../../config/config.js";
 import { hashConfigRaw } from "../../config/io.read-helpers.js";
 import type { ConfigWriteOptions } from "../../config/io.types.js";
-import type { ConfigFileSnapshot, OpenClawConfig } from "../../config/types.js";
+import type {
+  AgentDefaultsConfig,
+  ConfigFileSnapshot,
+  OpenClawConfig,
+} from "../../config/types.js";
 import { readUpdateStateSchemaVersions } from "../../infra/update-candidate-state.js";
+import {
+  captureUpdateDoctorConfigWrites,
+  writeUpdatePostInstallDoctorResult,
+} from "../../infra/update-doctor-result.js";
 import { prepareUpdateFailureReport } from "../../infra/update-failure-report-prepare.js";
 import { updateRecoverySchema } from "../../infra/update-recovery.js";
 import type { UpdateRunResult } from "../../infra/update-runner-types.js";
@@ -16,7 +26,101 @@ import { CommandProcessCleanupError } from "../../process/exec-result.js";
 import type { UpdateConfigSnapshot } from "./update-command-config-snapshot.js";
 import { rollbackFailedUpdate } from "./update-command-rollback.js";
 
-export async function writeWithRefreshFailure(
+export function writeDoctorRollbackConfig(stateDir: string, change: string) {
+  const configPath = path.join(stateDir, "openclaw.json");
+  const includePath = path.join(stateDir, "logging.json");
+  const includeTarget = path.join(stateDir, "logging-original.json");
+  const authored = {
+    gateway: { mode: "local" },
+    agents: { defaults: { models: { "openai/gpt-5.6-luna": {} } } },
+    ...(change.startsWith("doctor-include") ? { logging: { $include: "./logging.json" } } : {}),
+  };
+  const originalRaw = `// Fresh install: Doctor has never run.\n${JSON.stringify(authored, null, 2)}\n`;
+  if (change.startsWith("doctor-include")) {
+    const alias = change.startsWith("doctor-include-owned-alias");
+    fs.writeFileSync(alias ? includeTarget : includePath, '{"level":"info"}\n');
+    if (alias) {
+      fs.symlinkSync(includeTarget, includePath);
+    }
+  }
+  if (change.startsWith("doctor") || change === "readonly-config") {
+    fs.writeFileSync(configPath, originalRaw, { mode: 0o600 });
+  }
+  return { configPath, includePath, includeTarget, authored, originalRaw };
+}
+
+export async function writeDoctorRollbackReceipt(params: {
+  change: string;
+  configPath: string;
+  resultPath: string;
+  authored: { agents: { defaults: AgentDefaultsConfig } };
+  originalRaw: string;
+  operatorEdit: () => void;
+}): Promise<Error | undefined> {
+  const { change, configPath, resultPath, authored, originalRaw, operatorEdit } = params;
+  let doctorError: Error | undefined;
+  if (change === "doctor-input-edit") {
+    fs.writeFileSync(configPath, JSON.stringify({ ...authored, logging: { level: "debug" } }));
+  }
+  await captureUpdateDoctorConfigWrites(configPath, async (capture) => {
+    const io = createConfigIO({ env: process.env, pluginValidation: "skip" });
+    const input = await io.readConfigFileSnapshot();
+    if (change.startsWith("doctor-include-owned")) {
+      await transformConfigFile({
+        transform: (config) => ({
+          nextConfig: { ...config, logging: { ...config.logging, level: "warn" } },
+        }),
+        writeOptions: { skipPluginValidation: true, auditOrigin: "doctor" },
+      });
+      expect(fs.readFileSync(configPath, "utf8")).toBe(originalRaw);
+    } else if (change !== "doctor-unchanged") {
+      const nextConfig: OpenClawConfig = {
+        ...(input.sourceConfigBeforeMigrations ?? input.sourceConfig),
+        meta: {
+          migrations: { modelPolicyAllowlist: true },
+          lastTouchedVersion: "2026.9.3",
+        },
+        agents: {
+          defaults: {
+            ...authored.agents.defaults,
+            modelPolicy: { allow: ["openai/gpt-5.6-luna"] },
+          },
+        },
+        wizard: { lastRunVersion: "2026.9.3", lastRunCommand: "doctor" },
+      };
+      const writeOptions = {
+        baseSnapshot: input,
+        lastTouchedVersionOverride: "2026.9.3",
+        skipPluginValidation: true,
+      };
+      if (change === "doctor-compensated") {
+        doctorError = await writeWithRefreshFailure(nextConfig, writeOptions, originalRaw);
+      } else {
+        await io.writeConfigFile(nextConfig, writeOptions);
+      }
+    }
+    if (change === "doctor-capture-edit") {
+      operatorEdit();
+    }
+    if (change === "doctor-settled-exception") {
+      expect(capture.inputHash).toBe(hashConfigRaw(originalRaw));
+      expect(capture.hash).toBe(hashConfigRaw(fs.readFileSync(configPath, "utf8")));
+      expect(capture.hash).not.toBe(capture.inputHash);
+    }
+    await writeUpdatePostInstallDoctorResult({
+      resultPath,
+      result: {
+        status: doctorError ? "error" : "ok",
+        configHash: capture.hash,
+        ...(change === "doctor-missing-input" ? {} : { configInputHash: capture.inputHash }),
+        ...(capture.fileWrites ? { configFileWrites: capture.fileWrites } : {}),
+      },
+    });
+  });
+  return doctorError;
+}
+
+async function writeWithRefreshFailure(
   nextConfig: OpenClawConfig,
   writeOptions: ConfigWriteOptions & { baseSnapshot: ConfigFileSnapshot },
   originalRaw: string,

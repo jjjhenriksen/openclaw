@@ -74,10 +74,6 @@
   background: var(--bg-elevated);
 }
 
-:root[data-theme-mode="light"] .settings-segmented--primary {
-  background: white;
-}
-
 .settings-segmented--compact {
   --settings-control-height: 24px;
 
@@ -163,7 +159,7 @@ wa-radio-group.settings-segmented::part(form-control-label) {
 .settings-segmented--accent > .settings-segmented__btn--active {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   background: var(--accent-subtle);
-  color: var(--accent);
+  color: var(--text);
   font-weight: 600;
   box-shadow: 0 1px 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
