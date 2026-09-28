@@ -72,12 +72,23 @@ missing poses use `idle`. Core owns playback, reduced motion, sizing, and unavai
 artwork fallbacks. Keep character IDs stable across releases so visits remain linked.
 The full identity is `plugin-id/pack-id/character-id`; built-in palette IDs remain unchanged.
 
-The source checkout includes a complete example at `examples/plugins/lobster-pack`.
-Install it with `openclaw plugins install ./examples/plugins/lobster-pack`, enable
-it through the normal plugin controls, then open **Settings → LobsterDex**. Each
+A source checkout containing this feature includes a private example at
+`examples/plugins/lobster-pack`. The published OpenClaw `2026.9.6` release does not
+support `lobsterPacks`; do not use that version as this feature's compatibility floor.
+From the supporting checkout, run
+`pnpm openclaw plugins install ./examples/plugins/lobster-pack`, enable it through
+the normal plugin controls, then open **Settings → LobsterDex**. Each
 pack has its own collection count; installing it does not change built-in completion.
 Invalid definitions or artwork produce plugin diagnostics and are omitted from
 the available catalog. Updating or disabling a plugin refreshes its contributions.
+
+The example is for local development and is not publishable as-is. Its
+`private: true` package omits release compatibility and build-version declarations
+until the first supporting release is assigned. Before publishing a derived pack,
+set `openclaw.compat.pluginApi` and `openclaw.install.minHostVersion` to a released version that
+provides Lobster Packs, record the actual build version in
+`openclaw.build.openclawVersion`, and verify the pack on that minimum version.
+See [Package metadata](/plugins/manifest/package-json) for the compatibility contract.
 
 ## Use the inventory and renderer
 

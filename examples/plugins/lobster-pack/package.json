@@ -12,13 +12,7 @@
   "openclaw": {
     "extensions": [
       "./index.js"
-    ],
-    "compat": {
-      "pluginApi": ">=2026.9.6",
-      "minGatewayVersion": "2026.9.6"
-    },
-    "build": {
-      "openclawVersion": "2026.9.6"
-    }
-  }
+    ]
+  },
+  "private": true
 }
