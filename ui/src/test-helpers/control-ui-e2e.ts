@@ -12,10 +12,7 @@ import type { InlineConfig, Plugin, PreviewServer, ViteDevServer } from "vite";
 import { GATEWAY_SERVER_CAPS } from "../../../packages/gateway-protocol/src/server-capabilities.js";
 import { PROTOCOL_VERSION } from "../../../packages/gateway-protocol/src/version.js";
 import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "../../../src/gateway/control-ui-contract.js";
-import {
-  controlUiPluginAssetPrefix,
-  controlUiPluginAssetRoot,
-} from "../../../src/gateway/control-ui-plugin-assets-contract.js";
+import * as pluginAssets from "../../../src/gateway/control-ui-plugin-assets-contract.js";
 import type {
   AgentsListResult,
   ModelCatalogEntry,
@@ -1010,7 +1007,7 @@ export function createControlUiMockBootstrapConfig(scenario: ControlUiMockGatewa
       : []
     ).map(({ pluginId }) => ({
       pluginId,
-      path: controlUiPluginAssetPrefix(pluginId, normalizedScenario.basePath),
+      path: pluginAssets.controlUiPluginAssetPrefix(pluginId, normalizedScenario.basePath),
       match: "prefix",
     })),
     allowExternalEmbedUrls: false,
@@ -2879,7 +2876,7 @@ export async function installMockGateway(
 ): Promise<MockGatewayControls> {
   const prepared = await prepareControlUiMockGatewayScenario(scenario);
   if (prepared.assets.size) {
-    await page.route(`**${controlUiPluginAssetRoot()}**`, async (route) => {
+    await page.route(`**${pluginAssets.controlUiPluginAssetRoot()}**`, async (route) => {
       const asset = prepared.assets.get(new URL(route.request().url()).pathname);
       await route.fulfill(asset ? { status: 200, ...asset } : { status: 404 });
     });
