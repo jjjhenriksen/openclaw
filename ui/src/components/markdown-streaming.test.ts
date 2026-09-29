@@ -649,7 +649,9 @@ export function sample${index}(value: number): number {
 
     const html = toStreamingMarkdownParts(completed, {}, key).join("");
     expect(html).toBe(toStreamingMarkdownParts(completed).join(""));
-    expect(htmlFragment(html).querySelectorAll(".katex-display")).toHaveLength(1);
+    expect(
+      htmlFragment(html).querySelectorAll('openclaw-markdown-math[data-display="true"]'),
+    ).toHaveLength(1);
   });
 
   it.each([

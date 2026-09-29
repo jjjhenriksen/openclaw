@@ -1,76 +1,9 @@
-import katex from "katex";
-import "katex/dist/katex.min.css";
+import "./markdown-math-element.ts";
 import type { MarkdownIt, StateBlock, StateInline } from "markdown-it";
-
-// Generated KaTeX output shares the Markdown sanitizer; authored HTML stays escaped.
-const markdownMathTags = [
-  "math",
-  "annotation",
-  "menclose",
-  "merror",
-  "mfrac",
-  "mi",
-  "mmultiscripts",
-  "mn",
-  "mo",
-  "mover",
-  "mpadded",
-  "mphantom",
-  "mroot",
-  "mrow",
-  "ms",
-  "mspace",
-  "msqrt",
-  "mstyle",
-  "msub",
-  "msup",
-  "msubsup",
-  "mtable",
-  "mtd",
-  "mtext",
-  "mtr",
-  "munder",
-  "munderover",
-  "semantics",
-  "svg",
-  "path",
-  "line",
-  "use",
-];
-const markdownMathAttrs = [
-  "aria-hidden",
-  "aria-level",
-  "xmlns",
-  // KaTeX MathML carries semantic variants and barless binomial fractions.
-  "mathvariant",
-  "linethickness",
-  "fence",
-  "viewBox",
-  "width",
-  "height",
-  "x",
-  "y",
-  "d",
-  "fill",
-  "stroke",
-  "stroke-width",
-  "focusable",
-  "preserveAspectRatio",
-  "style",
-];
-
-function removeAuthoredProgressStyle(node: Node) {
-  // Authored progress markup must not inherit KaTeX geometry styles.
-  if (node instanceof HTMLElement && node.localName === "progress") {
-    node.removeAttribute("style");
-  }
-}
-
-export const markdownMathSanitizer = {
-  tags: markdownMathTags,
-  attrs: markdownMathAttrs,
-  afterSanitizeAttributes: removeAuthoredProgressStyle,
-};
+import {
+  findMarkdownCodeSpans,
+  isInsideCode,
+} from "../../../packages/markdown-core/src/reasoning-tag-parser.js";
 
 const DISPLAY_DELIMITERS = [
   { open: "$$", close: "$$", displayMode: true },
@@ -89,30 +22,15 @@ let renderedMathExpressions = 0;
 const BARE_URL_RE = /(?:https?:\/\/|www\.)[^\s<]*/giu;
 
 function renderMath(source: string, displayMode: boolean): string {
+  const delimiter = displayMode ? "$$" : "$";
+  const literal = escapeMathFallback(delimiter + source + delimiter);
   if (renderedMathExpressions >= MAX_MATH_EXPRESSIONS) {
-    return "";
+    return literal;
   }
   renderedMathExpressions += 1;
-  try {
-    return (
-      katex
-        .renderToString(source, {
-          displayMode,
-          output: "htmlAndMathml",
-          strict: "ignore",
-          throwOnError: false,
-          trust: false,
-          maxExpand: 1000,
-          maxSize: 10,
-        })
-        // KaTeX's source annotation is redundant for our accessible MathML
-        // branch and would echo untrusted command arguments into the DOM.
-        .replace(/<annotation\b[^>]*>[\s\S]*?<\/annotation>/gu, "")
-    );
-  } catch {
-    // Keep malformed or unexpectedly expensive input visible as literal text.
-    return "";
-  }
+  // HTML caches retain this leaf, not a load-state-dependent literal snapshot.
+  // Every Markdown surface gets the same connected lifecycle without a host directive.
+  return `<openclaw-markdown-math data-display="${displayMode}">${literal}</openclaw-markdown-math>`;
 }
 
 function escapeMathFallback(source: string): string {
@@ -138,8 +56,18 @@ export function findUnescapedMathDelimiter(source: string, needle: string, start
 
 // Inline states own one source string; reuse its URL ranges across delimiter probes.
 const bareUrlRanges = new WeakMap<StateInline, Array<readonly [number, number]>>();
+const codeSpanRanges = new WeakMap<StateInline, Array<[number, number]>>();
 
-function isInsideBareUrl(state: StateInline): boolean {
+function isInsideCodeSpan(state: StateInline, position: number): boolean {
+  let ranges = codeSpanRanges.get(state);
+  if (!ranges) {
+    ranges = findMarkdownCodeSpans(state.src);
+    codeSpanRanges.set(state, ranges);
+  }
+  return isInsideCode(position, ranges);
+}
+
+function isInsideBareUrl(state: StateInline, position: number): boolean {
   let ranges = bareUrlRanges.get(state);
   if (!ranges) {
     ranges = [];
@@ -154,9 +82,9 @@ function isInsideBareUrl(state: StateInline): boolean {
   while (low < high) {
     const middle = (low + high) >>> 1;
     const [start, end] = ranges[middle]!;
-    if (state.pos < start) {
+    if (position < start) {
       high = middle;
-    } else if (state.pos >= end) {
+    } else if (position >= end) {
       low = middle + 1;
     } else {
       return true;
@@ -229,7 +157,7 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
   if (!delimiter) {
     return false;
   }
-  if (isInsideBareUrl(state)) {
+  if (isInsideBareUrl(state, state.pos)) {
     return false;
   }
   const contentStart = delimiter.open.length;
@@ -244,6 +172,13 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
       /^(?:-\$?\d|\d)/u.test(source.slice(close + delimiter.close.length)) ||
       /\d-$/u.test(state.src.slice(0, state.pos)))
   ) {
+    return false;
+  }
+  if (
+    isInsideBareUrl(state, state.pos + close) ||
+    (source.slice(contentStart, close).includes("`") && isInsideCodeSpan(state, state.pos + close))
+  ) {
+    // Reject cheap currency shapes first. Only ambiguous candidates need code ownership.
     return false;
   }
   state.pos += close + delimiter.close.length;
@@ -266,18 +201,13 @@ export function installMarkdownMath(markdownParser: MarkdownIt) {
   markdownParser.inline.ruler.before("escape", "math_inline", parseInlineMath);
   markdownParser.renderer.rules.math_inline = (tokens, index) => {
     const token = tokens[index];
-    return token
-      ? renderMath(token.content, Boolean(token.meta?.displayMode)) ||
-          (token.meta?.displayMode
-            ? `$$${escapeMathFallback(token.content)}$$`
-            : `$${escapeMathFallback(token.content)}$`)
-      : "";
+    return token ? renderMath(token.content, Boolean(token.meta?.displayMode)) : "";
   };
   markdownParser.renderer.rules.math_block = (tokens, index) => {
     const token = tokens[index];
     if (!token) {
       return "";
     }
-    return renderMath(token.content, true) || `$$${escapeMathFallback(token.content)}$$`;
+    return renderMath(token.content, true);
   };
 }

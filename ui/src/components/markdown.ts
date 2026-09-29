@@ -15,7 +15,6 @@ import {
   restoreMarkdownHumanMentions,
 } from "./markdown-human-mentions.ts";
 import type { MarkdownJson } from "./markdown-json.ts";
-import { markdownMathSanitizer } from "./markdown-math.ts";
 import { createMarkdownParser } from "./markdown-parser.ts";
 import { stripProgressCardRawContentBlocks } from "./markdown-raw-content.ts";
 import {
@@ -52,6 +51,7 @@ const allowedTags = [
   "li",
   "ol",
   "openclaw-person-reference",
+  "openclaw-markdown-math",
   "p",
   "pre",
   "s",
@@ -66,7 +66,6 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
-  ...markdownMathSanitizer.tags,
 ];
 
 const allowedAttrs = [
@@ -98,7 +97,6 @@ const allowedAttrs = [
   "aria-label",
   "aria-pressed",
   "role",
-  ...markdownMathSanitizer.attrs,
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -507,7 +505,6 @@ function markdownSanitizer(options = sanitizeOptions) {
   sanitizer.setConfig(options);
 
   sanitizer.addHook("afterSanitizeAttributes", (node) => {
-    markdownMathSanitizer.afterSanitizeAttributes(node);
     if (!(node instanceof HTMLAnchorElement)) {
       return;
     }
