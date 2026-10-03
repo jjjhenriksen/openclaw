@@ -1,6 +1,9 @@
 import "./tooltip.ts";
+import { formatUiError } from "../lib/format-error.ts";
 import { anchorFromNavigationEvent } from "../lib/navigation-click.ts";
+import { showToast } from "../lib/toast.ts";
 import { ownsHoverPreview } from "./link-reader-hovercard-registration.ts";
+import type { installMarkdownFileHovercards } from "./markdown-file-hovercard.ts";
 import { collectTooltipNameText, isTooltipTriggerElement } from "./tooltip-content.ts";
 
 function titleNamesElement(element: Element) {
@@ -27,6 +30,9 @@ function titleNamesElement(element: Element) {
 
 /** `title` remains a declarative hint source; only the shared Tooltip renders it. */
 export function installTitleTooltips(ownerDocument: Document) {
+  let fileHovercards: ReturnType<typeof installMarkdownFileHovercards> | undefined;
+  let fileHovercardsLoading: Promise<void> | undefined;
+  let disposed = false;
   let tooltip: HTMLElementTagNameMap["openclaw-tooltip"] | null = null;
   let active: {
     anchor: HTMLElement | SVGElement;
@@ -148,6 +154,34 @@ export function installTitleTooltips(ownerDocument: Document) {
     }
     const elements = event.composedPath().filter(isTooltipTriggerElement);
     const link = anchorFromNavigationEvent(event);
+    if (link?.hasAttribute("data-file-path")) {
+      restore();
+      if (!fileHovercards) {
+        fileHovercardsLoading ??= import("./markdown-file-hovercard.ts")
+          .then((module) => {
+            if (!disposed) {
+              fileHovercards = module.installMarkdownFileHovercards(ownerDocument);
+            }
+          })
+          .catch((error: unknown) => {
+            fileHovercardsLoading = undefined;
+            if (!disposed) {
+              showToast({ message: formatUiError(error) });
+            }
+          });
+        const input = event.type === "focusin" ? "focus" : "pointer";
+        void fileHovercardsLoading.then(() => {
+          if (link.isConnected && link.matches(input === "focus" ? ":focus" : ":hover")) {
+            fileHovercards?.activate(link, input);
+          }
+        });
+      }
+      return;
+    }
+    if (elements.some((element) => element.classList.contains("markdown-file-hovercard"))) {
+      restore();
+      return;
+    }
     // Iframe titles name browsing contexts, not hints. Explicit wrappers already
     // own their trigger; adapting those again would create competing popups.
     const explicit = elements.some((element) => element.localName === "openclaw-tooltip");
@@ -236,6 +270,8 @@ export function installTitleTooltips(ownerDocument: Document) {
   ownerDocument.addEventListener("pointerover", discover, true);
   ownerDocument.addEventListener("focusin", discover, true);
   return () => {
+    disposed = true;
+    fileHovercards?.dispose();
     ownerDocument.removeEventListener("pointerover", discover, true);
     ownerDocument.removeEventListener("focusin", discover, true);
     restore();

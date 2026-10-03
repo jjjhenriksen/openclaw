@@ -1,0 +1,69 @@
+.markdown-file-hovercard {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 1990;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--overlay-border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--overlay-shadow);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.markdown-file-hovercard__path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.markdown-file-hovercard__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: default;
+}
+
+.markdown-file-hovercard__copy svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.markdown-file-hovercard__status:not(.sr-only) {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.markdown-file-hovercard__copy:hover {
+  background: var(--bg-hover);
+}
+
+.markdown-file-hovercard__copy:active {
+  background: var(--bg-accent);
+}
+
+.markdown-file-hovercard__copy:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

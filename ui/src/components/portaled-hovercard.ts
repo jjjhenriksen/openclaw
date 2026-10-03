@@ -138,7 +138,11 @@ export class PortaledHovercardController {
 
   focusables(): HTMLElement[] {
     // Decorative avatar twins opt out; cards share the same keyboard traversal contract.
-    return [...(this.card?.querySelectorAll<HTMLElement>('a[href]:not([tabindex="-1"])') ?? [])];
+    return [
+      ...(this.card?.querySelectorAll<HTMLElement>(
+        'a[href]:not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"])',
+      ) ?? []),
+    ];
   }
 
   scheduleOpen(delay: number, open: () => void, trigger = this.trigger): void {
