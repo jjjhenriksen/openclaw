@@ -143,15 +143,30 @@ describe("detectChangedScope", () => {
       { runNode: true, runMacos: true, runMacosNode: true, runIosBuild: true },
     ],
     [["scripts/package-mac-app.sh"], { runNode: true, runMacos: true, runMacosNode: true }],
+    [["scripts/lib/openclaw-bun.json"], { runNode: true, runMacos: true, runMacosNode: true }],
+    [["scripts/stage-openclaw-bun.sh"], { runNode: true, runMacos: true, runMacosNode: true }],
     [
       ["skills/skill-creator/scripts/test_quick_validate.py"],
       { runNode: true, runSkillsPython: true },
     ],
     [[".github/workflows/ci.yml"], { runNode: true, runWindows: true, runUiTests: true }],
+    [["scripts/ci-xcodebuild.py"], { runNode: true, runIosBuild: true }],
+    [["scripts/ci-xcodebuild.py.bak"], { runNode: true }],
     [["scripts/install.ps1"], { runNode: true, runWindows: true, runChangedSmoke: true }],
     [["scripts/install.sh"], { runNode: true, runChangedSmoke: true }],
     [[".github/workflows/install-smoke.yml"], { runNode: true, runChangedSmoke: true }],
     [["src/plugins/loader.ts"], { runNode: true, runChangedSmoke: true }],
+    [
+      ["packages/gateway-protocol/src/schema/messages.ts"],
+      {
+        runNode: true,
+        runChangedSmoke: true,
+        runMacos: true,
+        runMacosNode: true,
+        runIosBuild: true,
+        runAndroid: true,
+      },
+    ],
     [["src/plugins/loader.test.ts"], { runNode: true }],
   ])("selects only the owning lanes for %j", (paths, lanes) => {
     expect(detectChangedScope(paths)).toEqual(expectedScope(lanes));
@@ -301,6 +316,7 @@ describe("detectChangedScope", () => {
       execFileSync("git", ["config", "user.name", "CI"], { cwd: repoDir });
       for (const sourcePath of [
         "scripts/ci-changed-scope.mjs",
+        "scripts/native-protocol-inputs.json",
         "scripts/lib/arg-utils.runtime.mjs",
         "scripts/lib/changed-path-facts.mjs",
         "scripts/lib/ci-native-generated-scope.mjs",
@@ -340,7 +356,7 @@ describe("detectChangedScope", () => {
 
       const output = parseGitHubOutput(fs.readFileSync(outputPath, "utf8"));
       expect(Object.keys(output).toSorted()).toEqual(
-        "changed_paths_file changed_paths_json node_test_data_only run_android run_changed_smoke run_control_ui_i18n run_fast_install_smoke run_full_install_smoke run_ios_build run_ios_screenshots run_macos run_macos_node run_native_i18n run_node run_node_fast_ci_routing run_node_fast_only run_node_fast_plugin_contracts run_skills_python run_ui_tests run_windows strict_control_ui_i18n strict_native_i18n".split(
+        "changed_paths_file changed_paths_json node_test_data_only run_android run_android_screenshots run_changed_smoke run_control_ui_i18n run_fast_install_smoke run_full_install_smoke run_ios_build run_ios_screenshots run_macos run_macos_node run_native_i18n run_node run_node_fast_ci_routing run_node_fast_only run_node_fast_plugin_contracts run_skills_python run_ui_tests run_windows strict_control_ui_i18n strict_native_i18n".split(
           " ",
         ),
       );

@@ -73,54 +73,6 @@ const cases: PlacementCase[] = [
 ];
 
 describe.skipIf(!hasPopoverApi)("portaled hovercard placement", () => {
-  it("reclamps after asynchronous card content grows without a viewport event", async () => {
-    const { page } = await import("vitest/browser");
-    const originalViewport = [innerWidth, innerHeight] as const;
-    onTestFinished(() => page.viewport(...originalViewport));
-    await page.viewport(390, 844);
-    // Drain the viewport resize before mounting so it cannot mask missing size tracking.
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
-
-    const trigger = document.body.appendChild(document.createElement("a"));
-    trigger.style.cssText = "position: fixed; left: 70px; top: 650px; width: 100px; height: 30px;";
-    const card = createPortaledHovercard("growing-preview", "growing-preview");
-    card.style.cssText = `position: fixed; inset: auto; width: 260px; height: 40px;
-      box-sizing: border-box; padding: 0; margin: 0; border: 0;`;
-    const controller = new PortaledHovercardController(() => controller.reset());
-    onTestFinished(() => {
-      controller.reset();
-      trigger.remove();
-    });
-    controller.markTrigger(trigger);
-    controller.mount(trigger, card, "vertical");
-    expect(card.getBoundingClientRect().left).toBe(70);
-    expect(card.dataset.side).toBe("bottom");
-
-    // Await the browser's size delivery and following positioning frame, not a timer.
-    const resized = new Promise<void>((resolve) => {
-      const observer = new ResizeObserver(() => {
-        observer.disconnect();
-        requestAnimationFrame(() => resolve());
-      });
-      observer.observe(card);
-      onTestFinished(() => observer.disconnect());
-    });
-    card.style.width = "355px";
-    card.style.height = "200px";
-    await resized;
-
-    const box = card.getBoundingClientRect();
-    expect({ x: box.x, y: box.y, right: box.right, bottom: box.bottom }).toEqual({
-      x: 23,
-      y: 440,
-      right: 378,
-      bottom: 640,
-    });
-    expect(card.dataset.side).toBe("top");
-  });
-
   it.each(cases)("$name", async ({ viewport, anchor, placement, cardHeight, expected }) => {
     const { page } = await import("vitest/browser");
     const originalViewport = [innerWidth, innerHeight] as const;

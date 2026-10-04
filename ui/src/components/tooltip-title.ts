@@ -3,7 +3,6 @@ import { formatUiError } from "../lib/format-error.ts";
 import { anchorFromNavigationEvent } from "../lib/navigation-click.ts";
 import { showToast } from "../lib/toast.ts";
 import { ownsHoverPreview } from "./link-reader-hovercard-registration.ts";
-import type { installMarkdownFileHovercards } from "./markdown-file-hovercard.ts";
 import { collectTooltipNameText, isTooltipTriggerElement } from "./tooltip-content.ts";
 
 function titleNamesElement(element: Element) {
@@ -30,14 +29,13 @@ function titleNamesElement(element: Element) {
 
 /** `title` remains a declarative hint source; only the shared Tooltip renders it. */
 export function installTitleTooltips(ownerDocument: Document) {
-  let fileHovercards: ReturnType<typeof installMarkdownFileHovercards> | undefined;
-  let fileHovercardsLoading: Promise<void> | undefined;
-  let disposed = false;
   let tooltip: HTMLElementTagNameMap["openclaw-tooltip"] | null = null;
   let active: {
     anchor: HTMLElement | SVGElement;
     link: HTMLAnchorElement | null;
     previewOwned: boolean;
+    filePath: string | null;
+    disposeFileContent?: () => void;
     title: string | null;
     label: string | null;
     pointer: boolean;
@@ -48,8 +46,9 @@ export function installTitleTooltips(ownerDocument: Document) {
     if (!active) {
       return;
     }
-    const { anchor, title, label } = active;
+    const { anchor, title, label, disposeFileContent } = active;
     active = null;
+    disposeFileContent?.();
     observer.disconnect();
     anchor.removeEventListener("pointerleave", handlePointerLeave);
     anchor.removeEventListener("focusout", handleFocusOut);
@@ -62,6 +61,7 @@ export function installTitleTooltips(ownerDocument: Document) {
     if (tooltip) {
       tooltip.anchor = null;
       tooltip.remove();
+      tooltip.replaceChildren();
     }
   };
 
@@ -81,7 +81,10 @@ export function installTitleTooltips(ownerDocument: Document) {
     if (!active) {
       return;
     }
-    if (!active.anchor.isConnected) {
+    if (
+      !active.anchor.isConnected ||
+      active.anchor.getAttribute("data-file-path") !== active.filePath
+    ) {
       restore();
       return;
     }
@@ -118,7 +121,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       active.label = active.title;
       active.anchor.setAttribute("aria-label", active.label);
     }
-    if (tooltip) {
+    if (tooltip && !active.filePath) {
       // Updates refresh an open hint, never reopen a dismissed action. Reentry
       // or keyboard focus supplies new intent after an empty title clears it.
       tooltip.content = content();
@@ -130,7 +133,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       return;
     }
     active.pointer = false;
-    if (!active.focus) {
+    if (!active.focus && !active.filePath) {
       restore();
     }
   };
@@ -144,7 +147,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       return;
     }
     active.focus = false;
-    if (!active.pointer) {
+    if (!active.pointer && !active.filePath) {
       restore();
     }
   };
@@ -152,36 +155,12 @@ export function installTitleTooltips(ownerDocument: Document) {
     if ("pointerType" in event && event.pointerType === "touch") {
       return;
     }
+    // Rich content stays under the shared tooltip lifecycle, not title discovery.
+    if (active?.filePath && event.composedPath().includes(tooltip!)) {
+      return;
+    }
     const elements = event.composedPath().filter(isTooltipTriggerElement);
     const link = anchorFromNavigationEvent(event);
-    if (link?.hasAttribute("data-file-path")) {
-      restore();
-      if (!fileHovercards) {
-        fileHovercardsLoading ??= import("./markdown-file-hovercard.ts")
-          .then((module) => {
-            if (!disposed) {
-              fileHovercards = module.installMarkdownFileHovercards(ownerDocument);
-            }
-          })
-          .catch((error: unknown) => {
-            fileHovercardsLoading = undefined;
-            if (!disposed) {
-              showToast({ message: formatUiError(error) });
-            }
-          });
-        const input = event.type === "focusin" ? "focus" : "pointer";
-        void fileHovercardsLoading.then(() => {
-          if (link.isConnected && link.matches(input === "focus" ? ":focus" : ":hover")) {
-            fileHovercards?.activate(link, input);
-          }
-        });
-      }
-      return;
-    }
-    if (elements.some((element) => element.classList.contains("markdown-file-hovercard"))) {
-      restore();
-      return;
-    }
     // Iframe titles name browsing contexts, not hints. Explicit wrappers already
     // own their trigger; adapting those again would create competing popups.
     const explicit = elements.some((element) => element.localName === "openclaw-tooltip");
@@ -191,7 +170,8 @@ export function installTitleTooltips(ownerDocument: Document) {
         break;
       }
       const title = element === active?.anchor ? active.title : element.getAttribute("title");
-      const hint = element.getAttribute("data-tooltip") ?? title;
+      const hint =
+        element.getAttribute("data-file-path") ?? element.getAttribute("data-tooltip") ?? title;
       if (hint !== null) {
         anchor = hint ? element : undefined;
         break;
@@ -209,7 +189,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       }
       return;
     }
-    if (!anchor && active?.focus && input === "pointer") {
+    if (!anchor && (active?.filePath || (active?.focus && input === "pointer"))) {
       return;
     }
     restore();
@@ -222,6 +202,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       anchor,
       link,
       previewOwned,
+      filePath: anchor.getAttribute("data-file-path"),
       title,
       label,
       pointer: input === "pointer",
@@ -241,6 +222,7 @@ export function installTitleTooltips(ownerDocument: Document) {
       attributeFilter: [
         "title",
         "data-tooltip",
+        "data-file-path",
         "aria-hidden",
         "aria-haspopup",
         "aria-expanded",
@@ -257,9 +239,34 @@ export function installTitleTooltips(ownerDocument: Document) {
     if (root instanceof ShadowRoot) {
       observer.observe(root, { childList: true, subtree: true });
     }
-    const tooltipContent = content();
+    const tooltipContent = active.filePath ?? content();
     if (!explicit && tooltipContent) {
       tooltip ??= ownerDocument.createElement("openclaw-tooltip");
+      if (active.filePath) {
+        const current = active;
+        const path = active.filePath;
+        const slot = ownerDocument.createElement("span");
+        slot.slot = "content";
+        slot.className = "markdown-file-tooltip";
+        slot.textContent = path;
+        tooltip.append(slot);
+        // Inline ownership preserves native Tab order without moving the file link.
+        anchor.after(tooltip);
+        tooltip.previewForAnchor(anchor, "", input);
+        void import("./markdown-file-tooltip.ts")
+          .then(({ renderMarkdownFileTooltip }) => {
+            if (active === current && slot.isConnected) {
+              current.disposeFileContent = renderMarkdownFileTooltip(slot, path);
+            }
+          })
+          .catch((error: unknown) => {
+            if (active === current) {
+              restore();
+              showToast({ message: formatUiError(error) });
+            }
+          });
+        return;
+      }
       const mount =
         elements.find((element) => element.localName === "openclaw-modal-dialog") ??
         ownerDocument.body;
@@ -270,8 +277,6 @@ export function installTitleTooltips(ownerDocument: Document) {
   ownerDocument.addEventListener("pointerover", discover, true);
   ownerDocument.addEventListener("focusin", discover, true);
   return () => {
-    disposed = true;
-    fileHovercards?.dispose();
     ownerDocument.removeEventListener("pointerover", discover, true);
     ownerDocument.removeEventListener("focusin", discover, true);
     restore();

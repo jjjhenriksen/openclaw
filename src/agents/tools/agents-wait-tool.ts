@@ -8,7 +8,7 @@ import type { OpenClawConfig } from "../../config/types.openclaw.js";
 import { createAbortError } from "../../infra/abort-signal.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
 import { resolveSubagentCompletionResultText } from "../subagents/completion/subagent-completion-result.js";
-import { onSubagentRegistryPersisted } from "../subagents/registry/subagent-registry-state.js";
+import { subscribeSubagentRunChanges } from "../subagents/registry/subagent-registry-publication.js";
 import { prepareSubagentRunsByRunIds } from "../subagents/registry/subagent-registry.js";
 import type { SubagentRunRecord } from "../subagents/registry/subagent-registry.types.js";
 import { markCollectorReaderTool } from "../subagents/swarm/swarm-collector-capability.js";
@@ -75,7 +75,7 @@ const AgentsWaitOutputSchema = Type.Object(
   { additionalProperties: false },
 );
 
-type WaitError = { runId: string; error: "not_found" | "not_owner" };
+type WaitError = NonNullable<Static<typeof AgentsWaitOutputSchema>["errors"]>[number];
 
 function ownsRun(
   entry: SubagentRunRecord,
@@ -230,7 +230,7 @@ async function waitForCollector(params: {
     }
   };
   // Cover the worker read as well as the parked wait; publications during either need a reread.
-  const unsubscribe = onSubagentRegistryPersisted(wake);
+  const unsubscribe = subscribeSubagentRunChanges("persistence", wake);
   params.signal?.addEventListener("abort", wake, { once: true });
   try {
     for (;;) {
@@ -311,7 +311,7 @@ export function createAgentsWaitTool(opts: {
     parameters: AgentsWaitToolSchema,
     outputSchema: AgentsWaitOutputSchema,
     execute: async (_toolCallId, args, signal) => {
-      const params = args as { ids: string[]; timeoutSeconds?: number; required?: boolean };
+      const params = args as Static<typeof AgentsWaitToolSchema>;
       if (params.required !== undefined && typeof params.required !== "boolean") {
         throw new ToolInputError("agents_wait required must be a boolean.");
       }
