@@ -399,6 +399,10 @@ function mountPortaledHovercard(params: {
       });
     }
   };
+  // Slotted controls and fonts can change the card's size after its first measurement.
+  const sizeObserver =
+    typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedulePosition);
+  sizeObserver?.observe(params.card, { box: "border-box" });
   const handleScroll = (event: Event) => {
     const source = event.composedPath()[0];
     if (source === window || source === document) {
@@ -422,6 +426,7 @@ function mountPortaledHovercard(params: {
   }
   position();
   return () => {
+    sizeObserver?.disconnect();
     if (frame !== null) {
       cancelAnimationFrame(frame);
     }

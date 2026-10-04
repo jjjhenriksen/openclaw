@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 import { toSanitizedMarkdownHtml } from "./markdown.ts";
 import { installTitleTooltips } from "./tooltip-title.ts";
@@ -84,6 +84,7 @@ describe("file path hovercard", () => {
     anchor().focus();
     await copyButton().click();
     const next = document.querySelectorAll<HTMLAnchorElement>("a[data-file-path]")[1];
+    assert(next, "Expected the second file link in the fixture");
     next.focus();
     finish();
     await expect.element(copyButton()).toBeVisible();
@@ -102,14 +103,14 @@ describe("file path hovercard", () => {
 
   it("lets another focused control handle Escape while a file link is hovered", async () => {
     const outside = document.querySelector<HTMLButtonElement>("#outside")!;
-    const handleEscape = vi.fn();
+    const handleEscape = vi.fn((event: KeyboardEvent) => event.defaultPrevented);
     outside.addEventListener("keydown", handleEscape);
     outside.focus();
     await page.elementLocator(anchor()).hover();
     await expect.element(copyButton()).toBeVisible();
     await userEvent.keyboard("{Escape}");
     expect(handleEscape).toHaveBeenCalledOnce();
-    expect(handleEscape.mock.calls[0][0].defaultPrevented).toBe(false);
+    expect(handleEscape).toHaveReturnedWith(false);
     expect(document.activeElement).toBe(outside);
     expect(card()).toBeNull();
   });
