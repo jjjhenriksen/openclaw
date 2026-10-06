@@ -260,9 +260,7 @@ describe("OpenAI Decisions API", () => {
     [422, "unsupported-input"],
     [500, "transport"],
   ])("maps HTTP %s without exposing the body or retrying", async (status, reason) => {
-    mocks.fetch.mockResolvedValue(
-      new Response("private reflected evidence", { status: Number(status) }),
-    );
+    mocks.fetch.mockResolvedValue(new Response("private reflected evidence", { status }));
     expect(await buildOpenAIDecisionProvider(() => ({})).evaluate(batch, context())).toEqual({
       status: "unavailable",
       reason,

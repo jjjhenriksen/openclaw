@@ -269,7 +269,9 @@ export async function evaluateOpenAIDecision(
           path: `models.providers.openai.headers.${name}`,
           defaults: config.secrets?.defaults,
         });
-        if (resolved !== undefined) configuredHeaders[name] = resolved;
+        if (resolved !== undefined) {
+          configuredHeaders[name] = resolved;
+        }
       }
     } catch {
       return { status: "unavailable", reason: "credentials-unavailable" };
@@ -313,8 +315,9 @@ export async function evaluateOpenAIDecision(
     try {
       if (!response.ok) {
         await response.body?.cancel();
-        if (response.status === 401 || response.status === 403)
+        if (response.status === 401 || response.status === 403) {
           return { status: "unavailable", reason: "authentication" };
+        }
         if (response.status === 429) {
           const seconds = parseRetryAfterHeaderSeconds(response.headers.get("retry-after"));
           return {
@@ -341,8 +344,9 @@ export async function evaluateOpenAIDecision(
       }
       assertActive();
       // Vendor-controlled names/model strings must not reflect the active credential.
-      if (JSON.stringify(payload).includes(auth.apiKey))
+      if (JSON.stringify(payload).includes(auth.apiKey)) {
         return { status: "unavailable", reason: "invalid-response" };
+      }
       return parseResult(batch, payload);
     } finally {
       await release();
