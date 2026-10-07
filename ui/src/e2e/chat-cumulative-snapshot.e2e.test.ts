@@ -130,12 +130,16 @@ suite.define(() => {
           state: "delta",
         });
 
-        await waitForCommittedState(page, () => {
-          const state = document.querySelector<HTMLElement & { state: ChatState }>(
-            "openclaw-chat-pane",
-          )?.state;
-          return state?.chatStream === "Visible\n";
-        });
+        await waitForCommittedState(
+          page,
+          () => {
+            const state = document.querySelector<HTMLElement & { state: ChatState }>(
+              "openclaw-chat-pane",
+            )?.state;
+            return state?.chatStream === "Visible\n";
+          },
+          {},
+        );
         const transcript = page.locator(".chat-thread-inner");
         await transcript.getByText("Visible", { exact: true }).waitFor();
         expect(await transcript.textContent()).not.toContain("[TOOL_RESULT]");
