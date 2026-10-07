@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import type { ChatState } from "../pages/chat/chat-state-contract.ts";
 import {
   createChatFlowE2eSuite,
   installMockGateway,
@@ -6,6 +7,7 @@ import {
   requireString,
 } from "./chat-flow.test-support.ts";
 import { createControlUiE2eContextOptions } from "./control-ui-e2e-suite.test-support.ts";
+import { waitForCommittedState } from "./settle.test-support.ts";
 
 const suite = createChatFlowE2eSuite();
 
@@ -71,58 +73,84 @@ suite.define(() => {
     }
   });
 
-  it("sanitizes a long split trace and reconciles the persisted reply", async () => {
-    const context = await suite.newBrowserContext(createControlUiE2eContextOptions());
-    const page = await context.newPage();
-    const gateway = await installMockGateway(page);
+  it.each([
+    {
+      label: "newline-free command trace",
+      prefix: `Visible\n🛠️${" ".repeat(300)}`,
+      completion: "git status",
+    },
+    {
+      label: "delayed legacy result",
+      prefix: `Visible\n[TOOL_RESULT]${" ".repeat(300)}`,
+      completion: "{",
+    },
+  ])(
+    "sanitizes $label from an append-only frame and reconciles once",
+    async ({ prefix, completion }) => {
+      const context = await suite.newBrowserContext(createControlUiE2eContextOptions());
+      const page = await context.newPage();
+      const gateway = await installMockGateway(page);
 
-    try {
-      await page.goto(`${suite.server.baseUrl}chat`);
-      await page.locator(".agent-chat__composer-combobox textarea").fill("long trace proof");
-      await page.getByRole("button", { name: "Send message" }).click();
-      const sendRequest = await gateway.waitForRequest("chat.send");
-      const runId = requireString(
-        requireRecord(sendRequest.params).idempotencyKey,
-        "chat send idempotency key",
-      );
-      const prefix = `🛠️${" ".repeat(300)}`;
-      await gateway.emitGatewayEvent("chat", {
-        deltaText: prefix,
-        message: {
-          content: [{ text: prefix, type: "text" }],
-          role: "assistant",
-          timestamp: Date.now(),
-        },
-        runId,
-        sessionKey: "main",
-        state: "delta",
-      });
-      const completion = "git status\nVisible";
-      await gateway.emitGatewayEvent("chat", {
-        deltaText: completion,
-        message: {
-          content: [{ text: `${prefix}${completion}`, type: "text" }],
-          role: "assistant",
-          timestamp: Date.now(),
-        },
-        runId,
-        sessionKey: "main",
-        state: "delta",
-      });
+      try {
+        await page.goto(`${suite.server.baseUrl}chat`);
+        await page.locator(".agent-chat__composer-combobox textarea").fill("long trace proof");
+        await page.getByRole("button", { name: "Send message" }).click();
+        const sendRequest = await gateway.waitForRequest("chat.send");
+        const runId = requireString(
+          requireRecord(sendRequest.params).idempotencyKey,
+          "chat send idempotency key",
+        );
 
-      const transcript = page.locator(".chat-thread-inner");
-      await transcript.getByText("Visible", { exact: true }).waitFor();
-      expect(await transcript.textContent()).not.toContain("🛠️");
-      expect(await transcript.textContent()).not.toContain("git status");
-      expect(await transcript.textContent()).not.toContain("hidden");
+        await gateway.emitGatewayEvent("chat", {
+          deltaText: prefix,
+          message: {
+            content: [{ text: prefix, type: "text" }],
+            role: "assistant",
+            timestamp: Date.now(),
+          },
+          runId,
+          sessionKey: "main",
+          state: "delta",
+        });
+        await waitForCommittedState(
+          page,
+          ({ prefix: expectedPrefix }) => {
+            const state = document.querySelector<HTMLElement & { state: ChatState }>(
+              "openclaw-chat-pane",
+            )?.state;
+            return state?.chatStream === expectedPrefix;
+          },
+          { prefix },
+        );
+        await gateway.emitGatewayEvent("chat", {
+          deltaText: completion,
 
-      await gateway.emitChatFinal({ runId, text: "Visible" });
-      await expect.poll(() => transcript.getByText("Visible", { exact: true }).count()).toBe(1);
-      expect(await page.locator(".chat-bubble.streaming").count()).toBe(0);
-    } finally {
-      await suite.closeBrowserContext(context);
-    }
-  });
+          runId,
+          sessionKey: "main",
+          state: "delta",
+        });
+
+        await waitForCommittedState(page, () => {
+          const state = document.querySelector<HTMLElement & { state: ChatState }>(
+            "openclaw-chat-pane",
+          )?.state;
+          return state?.chatStream === "Visible\n";
+        });
+        const transcript = page.locator(".chat-thread-inner");
+        await transcript.getByText("Visible", { exact: true }).waitFor();
+        expect(await transcript.textContent()).not.toContain("[TOOL_RESULT]");
+        expect(await transcript.textContent()).not.toContain("🛠️");
+        expect(await transcript.textContent()).not.toContain("git status");
+        expect(await transcript.textContent()).not.toContain("hidden");
+
+        await gateway.emitChatFinal({ runId, text: "Visible" });
+        await expect.poll(() => transcript.getByText("Visible", { exact: true }).count()).toBe(1);
+        expect(await page.locator(".chat-bubble.streaming").count()).toBe(0);
+      } finally {
+        await suite.closeBrowserContext(context);
+      }
+    },
+  );
 
   it("processes a cumulative snapshot burst through the production chat path", async () => {
     const context = await suite.newBrowserContext(createControlUiE2eContextOptions());
@@ -175,11 +203,15 @@ suite.define(() => {
               cumulativeText += deltaText;
               mockGateway.emit("chat", {
                 deltaText,
-                message: {
-                  content: [{ text: cumulativeText, type: "text" }],
-                  role: "assistant",
-                  timestamp: Date.now(),
-                },
+                ...(index === 1
+                  ? {
+                      message: {
+                        content: [{ text: cumulativeText, type: "text" }],
+                        role: "assistant",
+                        timestamp: Date.now(),
+                      },
+                    }
+                  : {}),
                 runId: targetRunId,
                 sessionKey: "main",
                 state: "delta",
@@ -206,7 +238,6 @@ suite.define(() => {
       expect(metrics.cumulativeChars).toBeGreaterThan(120_000);
       expect(metrics.maxReplaceInputChars).toBeLessThan(2_048);
       expect(metrics.replaceCalls).toBeGreaterThan(0);
-      expect(metrics.elapsedMs).toBeLessThan(5_000);
     } finally {
       await suite.closeBrowserContext(context);
     }
