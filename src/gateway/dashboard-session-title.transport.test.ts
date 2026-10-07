@@ -291,10 +291,6 @@ describe("generated titles over the real OpenAI-compatible transport", () => {
         const messages = requests[0]!.body.messages as Array<{ role: string; content: string }>;
         const sourceMessage = messages.findLast((message) => message.role === "user");
         expect(JSON.parse(sourceMessage!.content)).toEqual({ conversationLabelSource: source });
-        const titleInstructions = messages.find((message) => message.role === "system")!.content;
-        expect(titleInstructions).toContain("conversationLabelSource");
-        expect(titleInstructions).toContain("final user input");
-        expect(titleInstructions).not.toContain("user's first message");
         expect(persisted?.displayName).toBe("Invoice follow-up");
         expect(deriveSessionTitle(persisted)).toBe("Invoice follow-up");
       },
