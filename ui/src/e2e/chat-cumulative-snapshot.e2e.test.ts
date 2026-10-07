@@ -190,7 +190,7 @@ suite.define(() => {
           const startedAt = performance.now();
           // eslint-disable-next-line no-extend-native -- bounded proof instruments production replacement inputs and restores in finally
           String.prototype.replace = function (
-            this: string,
+            this: unknown,
             searchValue: string | RegExp,
             replaceValue: string | ((substring: string, ...args: unknown[]) => string),
           ) {
