@@ -83,8 +83,6 @@ export function bindPluginInstanceModuleLoader(params: PluginInstanceModuleLoade
       return entry.generated ? filename : entry.source;
     },
     params.nativeRecovery,
-    undefined,
-    { deferDeclaredDependencyBodies: params.deferDeclaredDependencyBodies },
   );
   if (
     params.expectedSourceDigest !== undefined &&

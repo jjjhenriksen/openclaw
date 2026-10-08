@@ -22,7 +22,6 @@ const ORDERED_EXTENSIONS = RUNNING_FROM_BUILT_ARTIFACT
 const ARTIFACT_CANDIDATES = ["doctor-contract-api", "contract-api"].map((basename) => {
   const rootPaths = ORDERED_EXTENSIONS.map((extension) => `${basename}${extension}`);
   return {
-    deferDeclaredDependencyBodies: basename === "doctor-contract-api" ? (true as const) : undefined,
     rootPaths,
     paths: rootPaths.flatMap((filename) => [filename, path.join("dist", filename)]),
   };
@@ -35,11 +34,9 @@ type DoctorArtifactSelection = {
   packageManifest?: OpenClawPackageManifest;
 };
 
-export function resolvePluginDoctorContractArtifact(params: DoctorArtifactSelection): {
-  modulePath: string;
-  boundaryRoot: string;
-  deferDeclaredDependencyBodies?: true;
-} | null {
+export function resolvePluginDoctorContractArtifact(
+  params: DoctorArtifactSelection,
+): { modulePath: string; boundaryRoot: string } | null {
   const artifacts = getPluginCacheRoot(params.rootDir).artifacts;
   const key = JSON.stringify([
     "doctor-contract",
@@ -52,7 +49,7 @@ export function resolvePluginDoctorContractArtifact(params: DoctorArtifactSelect
   if (cached !== undefined) {
     return cached;
   }
-  for (const { rootPaths, paths, deferDeclaredDependencyBodies } of ARTIFACT_CANDIDATES) {
+  for (const { rootPaths, paths } of ARTIFACT_CANDIDATES) {
     const modulePath = resolvePluginRootArtifactPath(params.rootDir, paths);
     if (!modulePath) {
       continue;
@@ -79,7 +76,6 @@ export function resolvePluginDoctorContractArtifact(params: DoctorArtifactSelect
       }
     }
     const resolved = {
-      deferDeclaredDependencyBodies,
       modulePath: pluginCacheRealpathSync(artifact.modulePath) ?? artifact.modulePath,
       boundaryRoot: pluginCacheRealpathSync(artifact.boundaryRoot) ?? artifact.boundaryRoot,
     };

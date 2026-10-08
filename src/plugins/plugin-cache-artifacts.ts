@@ -1,9 +1,5 @@
 /** Immutable artifact facts acquired by one plugin cache generation. */
-type PluginArtifactLocation = {
-  modulePath: string;
-  boundaryRoot: string;
-  deferDeclaredDependencyBodies?: true;
-};
+type PluginArtifactLocation = { modulePath: string; boundaryRoot: string };
 
 export type PluginModuleLoader = (target: string) => unknown;
 

@@ -31,6 +31,7 @@ function fixture(bytes: Buffer, basename = "fixture.bin") {
   const filename = path.join(source, basename);
   fs.writeFileSync(filename, bytes, { mode: 0o755 });
   return {
+    bytes,
     filename,
     capture(entry?: string) {
       const artifact = withPluginSourceCaptureDirectory(captures, () =>
@@ -169,21 +170,31 @@ it.each(["cold", "warm", "lazy"] as const)(
     }
     const lazy = phase === "lazy" ? source.capture(entry) : undefined;
     const copyRootFileSync = fsSafeAdvanced.copyRootFileSync;
+    const createFileSync = fsSafeAdvanced.createFileSync;
     let replaced = false;
+    const replaceAfterClose = (copied: fsSafeAdvanced.OwnedFileDescriptorSync, target: string) => {
+      const close = () => {
+        copied.close();
+        if (!replaced) {
+          replaced = true;
+          fs.renameSync(target, `${target}.original`);
+          fs.writeFileSync(target, "replaced");
+        }
+      };
+      return { ...copied, close, [Symbol.dispose]: close };
+    };
     vi.spyOn(fsSafeAdvanced, "copyRootFileSync").mockImplementation((options) => {
       const copied = copyRootFileSync(options);
       if (options.source.absolutePath !== source.filename) {
         return copied;
       }
-      const close = () => {
-        copied.close();
-        if (!replaced) {
-          replaced = true;
-          fs.renameSync(copied.path, `${copied.path}.original`);
-          fs.writeFileSync(copied.path, "replaced");
-        }
-      };
-      return { ...copied, close, [Symbol.dispose]: close };
+      return { ...copied, ...replaceAfterClose(copied, copied.path) };
+    });
+    vi.spyOn(fsSafeAdvanced, "createFileSync").mockImplementation((target, options) => {
+      const copied = createFileSync(target, options);
+      return path.basename(target) === path.basename(source.filename)
+        ? replaceAfterClose(copied, target)
+        : copied;
     });
 
     const capture = () => (lazy ? lazy.captureResolvedModule(source.filename) : source.capture());
@@ -206,7 +217,7 @@ it.each(["cold", "warm", "lazy"] as const)(
 );
 
 it("refuses a source swapped after OpenClaw pins it without leaving a capture", () => {
-  const source = fixture(Buffer.from("pinned source"), "fixture.js");
+  const source = fixture(Buffer.alloc(64 * 1024 + 1, "P"), "fixture.js");
   const admitted = fs.statSync(source.filename, { bigint: true });
   const copyRootFileSync = fsSafeAdvanced.copyRootFileSync;
   let target: string | undefined;
@@ -231,12 +242,12 @@ it("refuses a source swapped after OpenClaw pins it without leaving a capture", 
   expect(refused).toMatchObject({ code: "path-mismatch" });
   expect(target).toBeDefined();
   expect(fs.existsSync(target!)).toBe(false);
-  expect(fs.readFileSync(`${source.filename}.retained`, "utf8")).toBe("pinned source");
+  expect(fs.readFileSync(`${source.filename}.retained`)).toEqual(source.bytes);
   expect(fs.readFileSync(source.filename, "utf8")).toBe("replacement");
 });
 
 it("maps growth beyond the pinned size to the reload retry error with its cause", () => {
-  const source = fixture(Buffer.from("bounded"), "fixture.js");
+  const source = fixture(Buffer.alloc(64 * 1024 + 1, "B"), "fixture.js");
   const copyRootFileSync = fsSafeAdvanced.copyRootFileSync;
   let target: string | undefined;
   vi.spyOn(fsSafeAdvanced, "copyRootFileSync").mockImplementation((options) => {
@@ -262,7 +273,7 @@ it("maps growth beyond the pinned size to the reload retry error with its cause"
 });
 
 it.each(["EIO", "EBADF"])("propagates fatal %s copy failures without retry", (code) => {
-  const source = fixture(Buffer.from("captured"), "fixture.js");
+  const source = fixture(Buffer.alloc(64 * 1024 + 1, "C"), "fixture.js");
   const copyRootFileSync = fsSafeAdvanced.copyRootFileSync;
   const failure = new FsSafeError("helper-failed", "guarded synchronous file copy failed", {
     cause: Object.assign(new Error("injected copy failure"), { code }),
@@ -283,7 +294,7 @@ it.each(["EIO", "EBADF"])("propagates fatal %s copy failures without retry", (co
 it.each([false, true])(
   "preserves disk-full diagnostics when capture cleanup fails: %s",
   (cleanupFails) => {
-    const source = fixture(Buffer.from("captured"), "fixture.js");
+    const source = fixture(Buffer.alloc(64 * 1024 + 1, "C"), "fixture.js");
     const copyRootFileSync = fsSafeAdvanced.copyRootFileSync;
     const cause = Object.assign(new Error("capture filesystem is full"), { code: "ENOSPC" });
     const primary = new FsSafeError("helper-failed", "guarded synchronous file copy failed", {

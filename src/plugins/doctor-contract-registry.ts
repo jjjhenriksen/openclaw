@@ -170,7 +170,6 @@ function loadPluginDoctorContractEntry(
       record,
       contractArtifact.modulePath,
       contractArtifact.boundaryRoot,
-      { deferDeclaredDependencyBodies: contractArtifact.deferDeclaredDependencyBodies },
     );
     const { summary, ...contract } = loader.initialize(() =>
       coercePluginDoctorContractModule(
