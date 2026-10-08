@@ -226,6 +226,11 @@ invalidates it.
 A managed runtime instance owns its module results, registered callables, and
 runtime-store slots. Non-bundled instances also own a captured source artifact.
 Package plugins capture their package inputs when the instance is created.
+Dedicated non-bundled `doctor-contract-api` entries retain the plugin's package
+files and declared dependency metadata, acquiring dependency bodies on first
+demand under the same inventory owner. This keeps package-relative resource
+reads available without eagerly copying unrelated dependency trees. The broader
+legacy `contract-api` fallback retains complete dependency capture.
 Standalone files capture their entry and statically known inputs
 without copying the surrounding workspace. Bundled runtime and setup modules,
 including TypeScript source entries, share the host's code identity; each inventory

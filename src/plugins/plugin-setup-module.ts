@@ -10,9 +10,10 @@ export function getPluginSetupModuleLoader(
   record: PluginManifestRecord,
   source: string,
   rootDir: string,
+  options?: { deferDeclaredDependencyBodies?: boolean },
 ) {
   const cache = getPluginCache();
-  const key = `setup:${record.id}:${source}`;
+  const key = `setup:${options?.deferDeclaredDependencyBodies ? "lazy-dependencies" : "package"}:${record.id}:${source}`;
   const cached = cache.setupModules.get(key);
   if (!cached && cache.retirement) {
     throw new Error(`Plugin ${record.id} setup inventory has retired`);
@@ -49,6 +50,7 @@ export function getPluginSetupModuleLoader(
         origin: record.origin,
         source,
         rootDir,
+        deferDeclaredDependencyBodies: options?.deferDeclaredDependencyBodies,
       });
     } catch (error) {
       discard();

@@ -15,6 +15,7 @@ export type PluginInstanceModuleLoaderParams = {
   rootDir: string;
   devSourceRoot?: string | null;
   standalone?: boolean;
+  deferDeclaredDependencyBodies?: boolean;
   pluginSdkResolution?: PluginSdkResolutionPreference;
   expectedSourceDigest?: string;
   createHostModuleLoader?: () => PluginModuleLoader;
@@ -24,7 +25,13 @@ export type PluginInstanceModuleLoaderParams = {
 
 type RecoveryLoadFacts = Pick<
   PluginInstanceModuleLoaderParams,
-  "origin" | "source" | "devSourceRoot" | "standalone" | "pluginSdkResolution" | "recoverySourceMap"
+  | "origin"
+  | "source"
+  | "devSourceRoot"
+  | "standalone"
+  | "deferDeclaredDependencyBodies"
+  | "pluginSdkResolution"
+  | "recoverySourceMap"
 > & { sourceDigest?: string };
 type RecoverySource = ReturnType<
   ReturnType<typeof capturePluginGenerationArtifact>["captureRecoverySource"]
@@ -59,6 +66,7 @@ function createSourceModuleRecovery(
         rootDir: recovery.rootDir,
         devSourceRoot: facts.devSourceRoot,
         standalone: facts.standalone,
+        deferDeclaredDependencyBodies: facts.deferDeclaredDependencyBodies,
         pluginSdkResolution: facts.pluginSdkResolution,
         recoverySourceMap: createRecoverySourceMap(recovery.resolve, facts.recoverySourceMap),
         nativeRecovery: recovery.native,
@@ -85,6 +93,7 @@ export function preparePluginModuleLoaderRecovery(
     source: params.source,
     devSourceRoot: params.devSourceRoot,
     standalone: params.standalone,
+    deferDeclaredDependencyBodies: params.deferDeclaredDependencyBodies,
     pluginSdkResolution: params.pluginSdkResolution,
     recoverySourceMap: params.recoverySourceMap,
   };

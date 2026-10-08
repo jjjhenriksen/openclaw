@@ -53,6 +53,7 @@ export function capturePluginGenerationArtifact(
   moduleSource?: (filename: string) => string,
   nativeRecovery?: PluginNativeRecovery,
   dependencyLookupBoundary?: Parameters<typeof createPluginDependencyResolver>[0],
+  options?: { deferDeclaredDependencyBodies?: boolean },
 ) {
   const sourceCapture = createPluginSourceCapture(execute);
   const directory = sourceCapture.directory;
@@ -566,6 +567,7 @@ export function capturePluginGenerationArtifact(
       const manifest = capturePluginDependencies({
         root,
         manifestFile: entry ? undefined : path.join(destination, "package.json"),
+        deferDeclaredDependencyBodies: options?.deferDeclaredDependencyBodies,
         references,
         resolve: resolveDependency,
         capture: linkDependency,

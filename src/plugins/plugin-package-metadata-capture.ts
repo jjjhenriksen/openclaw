@@ -158,9 +158,11 @@ export function capturePluginDependencies(params: {
   manifestFile?: string;
   /** Nested manifests nobody selected (benchmarks, examples) keep their declarations optional. */
   incidental?: boolean;
+  /** Retain declared lookup metadata; execution promotes selected dependency bodies. */
+  deferDeclaredDependencyBodies?: boolean;
   references: ReadonlyMap<string, ReadonlySet<string>>;
   resolve: ReturnType<typeof createPluginDependencyResolver>;
-  capture: (name: string, dependency: PluginDependencyResolution) => void;
+  capture: (name: string, dependency: PluginDependencyResolution, metadataOnly?: boolean) => void;
 }) {
   const manifest: {
     dependencies?: Record<string, string>;
@@ -171,12 +173,13 @@ export function capturePluginDependencies(params: {
     ...[...pluginDependencyNames(manifest)].toSorted().map((name) => ({
       name,
       importer: path.join(params.root, "package.json"),
+      metadataOnly: params.deferDeclaredDependencyBodies === true,
     })),
     ...[...params.references].flatMap(([importer, names]) =>
-      [...names].toSorted().map((name) => ({ name, importer })),
+      [...names].toSorted().map((name) => ({ name, importer, metadataOnly: false })),
     ),
   ];
-  for (const { name, importer } of dependencies) {
+  for (const { name, importer, metadataOnly } of dependencies) {
     // The SDK keeps host identity; declared names otherwise use package lookup, including builtins.
     if (name === "openclaw" || name === "@openclaw/plugin-sdk") {
       continue;
@@ -195,7 +198,7 @@ export function capturePluginDependencies(params: {
         `Plugin dependency ${name} is missing from ${params.root}; install its dependencies and reload.`,
       );
     }
-    params.capture(name, dependency);
+    params.capture(name, dependency, metadataOnly);
   }
   return manifest;
 }
