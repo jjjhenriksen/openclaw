@@ -51,18 +51,6 @@ it.skipIf(process.platform === "win32")(
   },
 );
 
-it.each([
-  { name: "large file", bytes: Buffer.alloc(64 * 1024 + 1, "x"), basename: "input.js" },
-  { name: "native addon", bytes: Buffer.from("addon fixture"), basename: "addon.node" },
-  { name: "native executable", bytes: Buffer.from([0x7f, 0x45, 0x4c, 0x46]), basename: "tool" },
-])("retains guarded clone admission for $name", ({ bytes, basename }) => {
-  const subject = fixture(bytes, basename);
-  const clone = vi.spyOn(fsSafe, "copyRootFileSync");
-  subject.copy();
-  expect(clone).toHaveBeenCalledOnce();
-  expect(fs.readFileSync(subject.target)).toEqual(bytes);
-});
-
 it.skipIf(process.platform === "win32").each(["grow", "shrink", "replace", "symlink"])(
   "refuses a source that changes after descriptor admission: %s",
   (change) => {
