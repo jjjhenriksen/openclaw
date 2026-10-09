@@ -58,12 +58,17 @@ it.skipIf(process.platform === "win32").each(["grow", "shrink", "replace", "syml
     const create = fsSafe.createFileSync;
     vi.spyOn(fsSafe, "createFileSync").mockImplementation((target, options) => {
       if (target === subject.target) {
-        if (change === "grow") fs.appendFileSync(subject.source, "more");
-        else if (change === "shrink") fs.truncateSync(subject.source, 1);
-        else {
+        if (change === "grow") {
+          fs.appendFileSync(subject.source, "more");
+        } else if (change === "shrink") {
+          fs.truncateSync(subject.source, 1);
+        } else {
           fs.renameSync(subject.source, `${subject.source}.original`);
-          if (change === "replace") fs.writeFileSync(subject.source, "replacement");
-          else fs.symlinkSync(`${subject.source}.original`, subject.source);
+          if (change === "replace") {
+            fs.writeFileSync(subject.source, "replacement");
+          } else {
+            fs.symlinkSync(`${subject.source}.original`, subject.source);
+          }
         }
       }
       return create(target, options);
@@ -82,8 +87,11 @@ it.skipIf(process.platform === "win32").each(["grow", "shrink"])(
     vi.spyOn(fs, "writeSync").mockImplementation((...args) => {
       if (!changed) {
         changed = true;
-        if (change === "grow") fs.appendFileSync(subject.source, "more");
-        else fs.truncateSync(subject.source, 1);
+        if (change === "grow") {
+          fs.appendFileSync(subject.source, "more");
+        } else {
+          fs.truncateSync(subject.source, 1);
+        }
       }
       return Reflect.apply(write, fs, args);
     });
@@ -105,11 +113,15 @@ it.skipIf(process.platform === "win32").each(["leaf", "parent", "hardlink"])(
       } else if (change === "leaf") {
         fs.renameSync(subject.target, `${subject.target}.original`);
         fs.writeFileSync(subject.target, "foreign");
-      } else fs.linkSync(subject.target, `${subject.target}.alias`);
+      } else {
+        fs.linkSync(subject.target, `${subject.target}.alias`);
+      }
       return transfer(source, target, options);
     });
     expect(subject.copy).toThrow();
-    if (change !== "hardlink") expect(fs.readFileSync(subject.target, "utf8")).toBe("foreign");
+    if (change !== "hardlink") {
+      expect(fs.readFileSync(subject.target, "utf8")).toBe("foreign");
+    }
   },
 );
 
@@ -124,12 +136,8 @@ it.skipIf(process.platform === "win32")(
     });
     expect(subject.copy).toThrow("capture filesystem is full");
     expect(transfer).toHaveBeenCalledOnce();
-    try {
-      subject.copy();
-    } catch (error) {
-      // A failed acquisition is not retried over the partially created output.
-      expect(error).toMatchObject({ code: "already-exists" });
-    }
+    // A failed acquisition is not retried over the partially created output.
+    expect(subject.copy).toThrow(expect.objectContaining({ code: "already-exists" }));
     expect(transfer).toHaveBeenCalledOnce();
   },
 );
