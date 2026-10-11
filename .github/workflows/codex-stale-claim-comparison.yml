@@ -1,0 +1,52 @@
+name: Codex stale claim comparison
+on:
+  push:
+    branches: [test/codex-stale-claim-comparison-20261011]
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: baseline
+            sha: 84a834e2334046d4e6fa8020303d9593ca0af5ef
+          - label: pr-168660
+            sha: e67ca8eb02b68befe703287b0f5c993aff18cb27
+            ref: refs/pull/168660/head
+          - label: pr-153031
+            sha: 5d80bf7a985ea4f13b940e012cd290154762db27
+            ref: refs/pull/153031/head
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: probe
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - name: Check pinned public source and apply synthetic regressions
+        env:
+          EXPECTED_SHA: ${{ matrix.sha }}
+          PR_REF: ${{ matrix.ref }}
+        run: |
+          set -euo pipefail
+          git init source
+          git -C source remote add origin https://github.com/openclaw/openclaw.git
+          git -C source fetch --depth 1 origin "${PR_REF:-$EXPECTED_SHA}"
+          git -C source checkout --detach FETCH_HEAD
+          test "$(git -C source rev-parse HEAD)" = "$EXPECTED_SHA"
+          git -C source apply "$GITHUB_WORKSPACE/probe/stale-claim-regressions.patch"
+      - name: Run focused reproduction without credentials
+        working-directory: source
+        env:
+          CI: 1
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN GITHUB_TOKEN NODE_OPTIONS NODE_PATH
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm test extensions/codex/src/app-server/thread-lifecycle.binding.test.ts -t 'warm publication|rejecting rotation during native background' --maxWorkers=1

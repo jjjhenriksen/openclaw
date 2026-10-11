@@ -1,0 +1,192 @@
+diff --git a/extensions/codex/src/app-server/thread-lifecycle.binding.test.ts b/extensions/codex/src/app-server/thread-lifecycle.binding.test.ts
+index 2e1255d4ad6..a7f0db8881e 100644
+--- a/extensions/codex/src/app-server/thread-lifecycle.binding.test.ts
++++ b/extensions/codex/src/app-server/thread-lifecycle.binding.test.ts
+@@ -12,6 +12,7 @@ import {
+   ensureCodexAppServerClientRuntime,
+   hasCodexAppServerLiveThread,
+   isCodexAppServerLiveThreadClaimed,
++  protectCodexAppServerLiveThread,
+   retainCodexAppServerLiveThread,
+ } from "./client-runtime.js";
+ import { CodexAppServerClient, CodexAppServerRpcError } from "./client.js";
+@@ -42,6 +43,7 @@ import {
+   writeCodexAppServerBinding as writeRawCodexAppServerBinding,
+ } from "./session-binding.test-helpers.js";
+ import { retireCodexAppServerSessionGeneration } from "./session-retirement.js";
++import * as sessionBinding from "./session-binding.js";
+ import {
+   getLeasedSharedCodexAppServerClient,
+   releaseLeasedSharedCodexAppServerClient,
+@@ -913,6 +915,171 @@ describe("Codex app-server thread lifecycle bindings", () => {
+     },
+   );
+ 
++  it("starts changed tool policy after warm publication loses its authority reader", async () => {
++    const sessionFile = path.join(tempDir, "warm-publication-release.jsonl");
++    const workspaceDir = path.join(tempDir, "workspace");
++    const params = createParams(sessionFile, workspaceDir);
++    const threadId = "warm-publication-thread";
++    let starts = 0;
++    const fixture = await createLeasedCodexLifecycleHarness({
++      agentDir: path.join(tempDir, "agent"),
++      respond: async (method) => {
++        if (method === "config/read") {
++          return { config: {}, origins: {}, layers: [] };
++        }
++        if (method === "configRequirements/read") {
++          return { requirements: null };
++        }
++        if (method === "thread/start") {
++          starts += 1;
++          return threadStartResult(starts === 1 ? threadId : "updated-policy-thread");
++        }
++        if (method === "thread/resume") {
++          return threadStartResult(threadId);
++        }
++        throw new Error(`unexpected method: ${method}`);
++      },
++    });
++    const common = {
++      client: fixture.client,
++      params,
++      userMcpServersEnabled: false,
++      developerInstructions: "original policy",
++    };
++    const started = await startOrResumeThread(common);
++    expect(await retainThread(fixture.client, started)).toBe(true);
++    fixture.seed(threadStartResult("active-sibling"), { loaded: true, subscribed: true });
++    const sibling = await claimCodexAppServerLiveThread(fixture.client, "active-sibling");
++    expect(sibling).toBeDefined();
++    const readerFailure = new Error("warm publication reader release failed");
++    const resolveBinding = sessionBinding.resolveCodexSessionBinding;
++    const failedPublication = vi
++      .spyOn(sessionBinding, "resolveCodexSessionBinding")
++      .mockImplementationOnce(async (input) => {
++        const resolved = await resolveBinding(input);
++        const withCurrent = resolved.authority.withCurrent;
++        return {
++          ...resolved,
++          authority: {
++            ...resolved.authority,
++            withCurrent: async (consume) => {
++              const result = await withCurrent(consume);
++              // Model a reader failing to release after the lifecycle published
++              // its prepared binding; all earlier admissions use the real owner.
++              if (
++                result !== null &&
++                typeof result === "object" &&
++                "liveThreadOwnership" in result &&
++                result.liveThreadOwnership
++              ) {
++                throw readerFailure;
++              }
++              return result;
++            },
++          },
++        };
++      });
++    try {
++      await expect(startOrResumeThread(common)).rejects.toBe(readerFailure);
++      failedPublication.mockRestore();
++
++      await expect(
++        startOrResumeThread({
++          ...common,
++          developerInstructions: "updated policy",
++          dynamicTools: [createNamedDynamicTool("updated_tool")],
++        }),
++      ).resolves.toMatchObject({
++        threadId: "updated-policy-thread",
++        lifecycle: { action: "started" },
++      });
++      expect(isCodexAppServerLiveThreadClaimed(fixture.client, threadId)).toBe(false);
++      expect(() => sibling!.assertCurrent()).not.toThrow();
++      expect(fixture.client.getCloseError()).toBeUndefined();
++    } finally {
++      failedPublication.mockRestore();
++      await sibling?.release("active-sibling");
++    }
++  });
++
++  it("keeps the original warm policy usable after rejecting rotation during native background work", async () => {
++    const sessionFile = path.join(tempDir, "warm-background-policy-session.jsonl");
++    const workspaceDir = path.join(tempDir, "workspace");
++    const params = createParams(sessionFile, workspaceDir);
++    const threadId = "warm-background-policy-thread";
++    let pluginFingerprint = "original-plugin-policy";
++    const fixture = await createLeasedCodexLifecycleHarness({
++      agentDir: path.join(tempDir, "agent"),
++      respond: async (method) => {
++        if (method === "config/read") {
++          return { config: {}, origins: {}, layers: [] };
++        }
++        if (method === "configRequirements/read") {
++          return { requirements: null };
++        }
++        if (method === "thread/start") {
++          return threadStartResult(threadId);
++        }
++        if (method === "app/installed") {
++          return { apps: [{ id: "fixture-app", enabled: true, callable: true }] };
++        }
++        throw new Error(`unexpected method: ${method}`);
++      },
++    });
++    const common = {
++      client: fixture.client,
++      params,
++      userMcpServersEnabled: false,
++      pluginThreadConfig: {
++        enabled: true,
++        requiresCurrentPolicyCheck: true,
++        inputFingerprint: "stable-plugin-input",
++        build: async () => ({
++          enabled: true,
++          fingerprint: pluginFingerprint,
++          inputFingerprint: "stable-plugin-input",
++          diagnostics: [],
++          configPatch: createPluginAppConfigPatch(),
++          policyContext: createPluginAppPolicyContext(),
++          provisionalAppIds: ["fixture-app"],
++        }),
++      },
++    };
++    const started = await startOrResumeThread(common);
++    expect(await retainThread(fixture.client, started)).toBe(true);
++    const bindingBefore = await readCodexAppServerBinding(sessionFile);
++    // Native commands keep the original physical subscription protected after
++    // its foreground turn finishes; policy refusal must not steal its idle owner.
++    const releaseProtection = protectCodexAppServerLiveThread(fixture.client, threadId);
++    fixture.request.mockClear();
++    try {
++      pluginFingerprint = "changed-plugin-policy";
++      await expect(startOrResumeThread(common)).rejects.toThrow(
++        `Codex thread ${threadId} is claimed by active work; stop it first.`,
++      );
++      await expect(readCodexAppServerBinding(sessionFile)).resolves.toEqual(bindingBefore);
++      expect(
++        fixture.request.mock.calls.some(([method]) =>
++          ["thread/start", "thread/resume", "thread/unsubscribe"].includes(method),
++        ),
++      ).toBe(false);
++
++      pluginFingerprint = "original-plugin-policy";
++      await expect(startOrResumeThread(common)).resolves.toMatchObject({
++        threadId,
++        lifecycle: { action: "resumed" },
++      });
++      expect(
++        fixture.request.mock.calls.some(([method]) =>
++          ["thread/start", "thread/resume", "thread/unsubscribe"].includes(method),
++        ),
++      ).toBe(false);
++      expect(fixture.client.getCloseError()).toBeUndefined();
++    } finally {
++      releaseProtection();
++    }
++  });
++
+   it("cold-resumes a warm thread to clear stale enforcing PreToolUse hooks", async () => {
+     const sessionFile = path.join(tempDir, "warm-cleared-hooks-session.jsonl");
+     const workspaceDir = path.join(tempDir, "warm-cleared-hooks-workspace");
