@@ -12,12 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: baseline
-            sha: 84a834e2334046d4e6fa8020303d9593ca0af5ef
-          - label: pr-168660
-            sha: e67ca8eb02b68befe703287b0f5c993aff18cb27
-            ref: refs/pull/168660/head
-          - label: pr-153031
+          - label: pr-153031-adapted-fixture
             sha: 5d80bf7a985ea4f13b940e012cd290154762db27
             ref: refs/pull/153031/head
     steps:
@@ -39,7 +34,7 @@ jobs:
           git -C source fetch --depth 1 origin "${PR_REF:-$EXPECTED_SHA}"
           git -C source checkout --detach FETCH_HEAD
           test "$(git -C source rev-parse HEAD)" = "$EXPECTED_SHA"
-          git -C source apply "$GITHUB_WORKSPACE/probe/stale-claim-regressions.patch"
+          git -C source apply "$GITHUB_WORKSPACE/probe/pr-153031-regressions.patch"
       - name: Run focused reproduction without credentials
         working-directory: source
         env:
