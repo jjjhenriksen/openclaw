@@ -35,6 +35,17 @@ jobs:
           git -C source checkout --detach FETCH_HEAD
           test "$(git -C source rev-parse HEAD)" = "$EXPECTED_SHA"
           git -C source apply "$GITHUB_WORKSPACE/probe/pr-153031-regressions.patch"
+          # This pinned legacy head has an unrelated stale import which blocks collection.
+          # Its existing value-tree export is the same configuration validator owner.
+          python3 - <<'PYFIX'
+          from pathlib import Path
+          p = Path("source/src/config/mutate.include-io.ts")
+          s = p.read_text()
+          old = 'import { hashConfigRaw, rejectConfigNonFiniteNumbers } from "./io.read-helpers.js";'
+          assert old in s
+          s = s.replace(old, 'import { hashConfigRaw } from "./io.read-helpers.js";\nimport { rejectConfigNonFiniteNumbers } from "./value-tree.js";', 1)
+          p.write_text(s)
+          PYFIX
       - name: Run focused reproduction without credentials
         working-directory: source
         env:
@@ -44,4 +55,4 @@ jobs:
           unset GH_TOKEN GITHUB_TOKEN NODE_OPTIONS NODE_PATH
           corepack enable
           corepack pnpm install --frozen-lockfile
-          corepack pnpm test extensions/codex/src/app-server/thread-lifecycle.binding.test.ts -t 'warm publication|rejecting rotation during native background' --maxWorkers=1
+          corepack pnpm test extensions/codex/src/app-server/thread-lifecycle.binding.test.ts -t 'warm publication|rejecting rotation during native background' --maxWorkers=1 --pool=forks
