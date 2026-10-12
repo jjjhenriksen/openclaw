@@ -1199,6 +1199,12 @@ describe("codex conversation binding", () => {
                 }
                 return testCodexAppServerBindingStore.read(identity);
               },
+              readAsync: async (identity) => {
+                if (resumeAccepted && expiresDuring === "retention") {
+                  elapsedClock.mockReturnValue(1_001);
+                }
+                return await testCodexAppServerBindingStore.readAsync(identity);
+              },
               mutate: async (...args) => {
                 if (expiresDuring === "commit") {
                   elapsedClock.mockReturnValue(1_001);
