@@ -731,7 +731,13 @@ saved reply and any admitted completion claim remain available for a later
 attempt. Delegated requests and unverified internal inputs cannot resume
 automatically without surviving authority. Missing or invalid provenance does not
 establish a human sender for an internal claim. Legacy channel and Control UI
-turns retain their existing recovery checks. Child-completion follow-ups still use
+turns retain their existing recovery checks. Authenticated native-app turns can
+resume without transcript provenance when the saved operator source matches the
+interrupted run, session, and lifecycle. Recovery restores that source under the
+current identity, device, authentication, role, and access policy before execution;
+a saved claim alone grants no permission. Steering input does not replace that
+source. Sessions already marked failed still use explicit session recovery.
+Child-completion follow-ups still use
 their existing recovery and delivery ownership checks. If their agent database is
 still undergoing startup inspection or preparation, a child result changes while
 being read, or a preparation worker refuses work at capacity, the pending completion
