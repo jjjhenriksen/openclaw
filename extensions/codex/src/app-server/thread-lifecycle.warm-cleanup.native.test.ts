@@ -39,10 +39,12 @@ afterEach(() => {
 // The loopback provider chooses deterministic actions; the pinned native binary
 // owns threads, subscriptions, shell execution, inventory, and notifications.
 describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () => {
-  it.for(["publication failure", "protected rotation"] as const)(
+  it.for(["publication failure", "protected rotation", "protected publication failure"] as const)(
     "%s permits continuation without disturbing sibling ownership",
     { timeout: 90_000 },
     async (scenario, context) => {
+      const backgroundWork = scenario !== "publication failure";
+      const publicationFailure = scenario !== "protected rotation";
       const tempDirs = useAutoCleanupTempDirTracker((cleanup) =>
         context.onTestFinished(async () => {
           await closeOpenClawStateDatabaseAsync();
@@ -84,7 +86,7 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
             const parsed: unknown = JSON.parse(body);
             expect(isJsonObject(parsed)).toBe(true);
             providerRequests += 1;
-            const launch = scenario === "protected rotation" && !backgroundRequested;
+            const launch = backgroundWork && !backgroundRequested;
             backgroundRequested ||= launch;
             const item = launch
               ? {
@@ -329,8 +331,8 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
         return started.turn.id;
       };
       const first = await startOrResumeThread(common);
-      const firstTurnId = await runTurn(first.threadId, scenario === "protected rotation");
-      if (scenario === "protected rotation") {
+      const firstTurnId = await runTurn(first.threadId, backgroundWork);
+      if (backgroundWork) {
         expect(commands.size).toBe(1);
         const consume = await readCodexRetainedBackgroundCommands({
           client,
@@ -376,7 +378,7 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
       const before = requests.length;
       const saved = bindingStore.read(sessionBinding.sessionBindingIdentity(params));
       let publicationClaimed = false;
-      if (scenario === "publication failure") {
+      if (publicationFailure) {
         const resolveBinding = sessionBinding.resolveCodexSessionBinding;
         const readerFailure = new Error("injected warm publication reader settlement failure");
         const fault = vi
@@ -435,7 +437,7 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
       expect(JSON.stringify(history.thread.turns)).toContain("NATIVE_CONTINUATION_OK");
       record("native-continuation-persisted", { threadId: resumed.threadId });
       const transitionRequests = requests.slice(before);
-      if (scenario === "protected rotation") {
+      if (backgroundWork) {
         expect(
           transitionRequests.some(({ method }) =>
             ["thread/start", "thread/resume", "thread/unsubscribe"].includes(method),
@@ -461,7 +463,7 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
       await runTurn(siblingBinding.threadId);
       sibling!.assertCurrent();
       record("sibling-owner-current-after-native-turn", { threadId: siblingBinding.threadId });
-      if (scenario === "protected rotation") {
+      if (backgroundWork) {
         const inventory = await client.request("thread/backgroundTerminals/list", {
           threadId: first.threadId,
         });

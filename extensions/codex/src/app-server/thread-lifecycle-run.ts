@@ -57,7 +57,7 @@ export async function startOrResumeThread(
 ): Promise<CodexAppServerThreadLifecycleBinding> {
   const incognito = isIncognitoSessionKey(input.params.sessionKey);
   const clientId = resolveCodexAppServerClientInstanceId(input.client);
-  let warmBinding: CodexAppServerThreadLifecycleBinding | undefined;
+  let cleanupWarmBinding: (() => Promise<void>) | undefined;
   const prep = withCodexThreadLifecycleBinding(input, async (bindingIdentity, saved, authority) => {
     const assert = authority.assertCurrent;
     const params: CodexStartOrResumeThreadParams = { ...input, assertCurrent: assert, authority };
@@ -555,7 +555,7 @@ export async function startOrResumeThread(
           buildLoadedPluginThreadConfig,
         });
         if (warmReuse.kind === "ready") {
-          warmBinding = warmReuse.binding;
+          cleanupWarmBinding = warmReuse.cleanupOnFailure;
           return publishCodexThreadInferenceBinding(params, warmReuse.binding, true);
         }
         if (incognito || warmReuse.kind === "rotate") {
@@ -613,11 +613,10 @@ export async function startOrResumeThread(
   } catch (error) {
     // Warm reuse transfers its claim before publication and lease settlement.
     // Until this function returns, a rejected preparation still owns cleanup.
-    if (warmBinding?.liveThreadOwnership) {
+    if (cleanupWarmBinding) {
       try {
-        await warmBinding.liveThreadOwnership.release(warmBinding.threadId);
+        await cleanupWarmBinding();
       } catch (releaseError) {
-        await (input.abandonClient ?? (() => closeCodexStartupClientBestEffort(input.client)))();
         throw new AggregateError(
           [error, releaseError],
           "Codex warm thread preparation and subscription cleanup failed",

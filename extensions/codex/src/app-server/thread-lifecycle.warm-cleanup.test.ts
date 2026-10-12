@@ -124,92 +124,103 @@ function createPluginAppPolicyContext() {
 setupRunAttemptTestHooks({ isolateNativeSkillHome: true });
 
 describe("Codex warm subscription cleanup", () => {
-  it("starts changed tool policy after warm publication loses its authority reader", async () => {
-    const sessionFile = path.join(tempDir, "warm-publication-release.jsonl");
-    const workspaceDir = path.join(tempDir, "workspace");
-    const params = createParams(sessionFile, workspaceDir);
-    const threadId = "warm-publication-thread";
-    let starts = 0;
-    const fixture = await createLeasedCodexLifecycleHarness({
-      agentDir: path.join(tempDir, "agent"),
-      respond: async (method) => {
-        if (method === "config/read") {
-          return { config: {}, origins: {}, layers: [] };
-        }
-        if (method === "configRequirements/read") {
-          return { requirements: null };
-        }
-        if (method === "thread/start") {
-          starts += 1;
-          return threadStartResult(starts === 1 ? threadId : "updated-policy-thread");
-        }
-        if (method === "thread/resume") {
-          return threadStartResult(threadId);
-        }
-        throw new Error(`unexpected method: ${method}`);
-      },
-    });
-    const common = {
-      client: fixture.client,
-      params,
-      userMcpServersEnabled: false,
-      developerInstructions: "original policy",
-    };
-    const started = await startOrResumeThread(common);
-    expect(await retainThread(fixture.client, started)).toBe(true);
-    fixture.seed(threadStartResult("active-sibling"), { loaded: true, subscribed: true });
-    const sibling = await claimCodexAppServerLiveThread(fixture.client, "active-sibling");
-    expect(sibling).toBeDefined();
-    const readerFailure = new Error("warm publication reader release failed");
-    const resolveBinding = sessionBinding.resolveCodexSessionBinding;
-    const failedPublication = vi
-      .spyOn(sessionBinding, "resolveCodexSessionBinding")
-      .mockImplementationOnce(async (input) => {
-        const resolved = await resolveBinding(input);
-        const withCurrent = resolved.authority.withCurrent;
-        return {
-          ...resolved,
-          authority: {
-            ...resolved.authority,
-            withCurrent: async (consume) => {
-              const result = await withCurrent(consume);
-              // Model a reader failing to release after the lifecycle published
-              // its prepared binding; all earlier admissions use the real owner.
-              if (
-                result !== null &&
-                typeof result === "object" &&
-                "liveThreadOwnership" in result &&
-                result.liveThreadOwnership
-              ) {
-                throw readerFailure;
-              }
-              return result;
+  it.for([false, true])(
+    "recovers warm publication failure with background protection=%s",
+    async (backgroundWork) => {
+      const sessionFile = path.join(tempDir, "warm-publication-release.jsonl");
+      const workspaceDir = path.join(tempDir, "workspace");
+      const params = createParams(sessionFile, workspaceDir);
+      const threadId = "warm-publication-thread";
+      let starts = 0;
+      const fixture = await createLeasedCodexLifecycleHarness({
+        agentDir: path.join(tempDir, "agent"),
+        respond: async (method) => {
+          if (method === "config/read") {
+            return { config: {}, origins: {}, layers: [] };
+          }
+          if (method === "configRequirements/read") {
+            return { requirements: null };
+          }
+          if (method === "thread/start") {
+            starts += 1;
+            return threadStartResult(starts === 1 ? threadId : "updated-policy-thread");
+          }
+          if (method === "thread/resume") {
+            return threadStartResult(threadId);
+          }
+          throw new Error(`unexpected method: ${method}`);
+        },
+      });
+      const common = {
+        client: fixture.client,
+        params,
+        userMcpServersEnabled: false,
+        developerInstructions: "original policy",
+      };
+      const started = await startOrResumeThread(common);
+      expect(await retainThread(fixture.client, started)).toBe(true);
+      const releaseProtection = backgroundWork
+        ? protectCodexAppServerLiveThread(fixture.client, threadId)
+        : undefined;
+      fixture.seed(threadStartResult("active-sibling"), { loaded: true, subscribed: true });
+      const sibling = await claimCodexAppServerLiveThread(fixture.client, "active-sibling");
+      expect(sibling).toBeDefined();
+      const readerFailure = new Error("warm publication reader release failed");
+      const resolveBinding = sessionBinding.resolveCodexSessionBinding;
+      const failedPublication = vi
+        .spyOn(sessionBinding, "resolveCodexSessionBinding")
+        .mockImplementationOnce(async (input) => {
+          const resolved = await resolveBinding(input);
+          const withCurrent = resolved.authority.withCurrent;
+          return {
+            ...resolved,
+            authority: {
+              ...resolved.authority,
+              withCurrent: async (consume) => {
+                const result = await withCurrent(consume);
+                // Model a reader failing to release after the lifecycle published
+                // its prepared binding; all earlier admissions use the real owner.
+                if (
+                  result !== null &&
+                  typeof result === "object" &&
+                  "liveThreadOwnership" in result &&
+                  result.liveThreadOwnership
+                ) {
+                  throw readerFailure;
+                }
+                return result;
+              },
             },
-          },
-        };
-      });
-    try {
-      await expect(startOrResumeThread(common)).rejects.toBe(readerFailure);
-      failedPublication.mockRestore();
+          };
+        });
+      try {
+        await expect(startOrResumeThread(common)).rejects.toBe(readerFailure);
+        failedPublication.mockRestore();
+        expect(isCodexAppServerLiveThreadClaimed(fixture.client, threadId)).toBe(false);
 
-      await expect(
-        startOrResumeThread({
-          ...common,
-          developerInstructions: "updated policy",
-          dynamicTools: [createNamedDynamicTool("updated_tool")],
-        }),
-      ).resolves.toMatchObject({
-        threadId: "updated-policy-thread",
-        lifecycle: { action: "started" },
-      });
-      expect(isCodexAppServerLiveThreadClaimed(fixture.client, threadId)).toBe(false);
-      expect(() => sibling!.assertCurrent()).not.toThrow();
-      expect(fixture.client.getCloseError()).toBeUndefined();
-    } finally {
-      failedPublication.mockRestore();
-      await sibling?.release("active-sibling");
-    }
-  });
+        await expect(
+          startOrResumeThread(
+            backgroundWork
+              ? common
+              : {
+                  ...common,
+                  developerInstructions: "updated policy",
+                  dynamicTools: [createNamedDynamicTool("updated_tool")],
+                },
+          ),
+        ).resolves.toMatchObject({
+          threadId: backgroundWork ? threadId : "updated-policy-thread",
+          lifecycle: { action: backgroundWork ? "resumed" : "started" },
+        });
+        expect(() => sibling!.assertCurrent()).not.toThrow();
+        expect(fixture.client.getCloseError()).toBeUndefined();
+      } finally {
+        failedPublication.mockRestore();
+        releaseProtection?.();
+        await sibling?.release("active-sibling");
+      }
+    },
+  );
 
   it("keeps the original warm policy usable after rejecting rotation during native background work", async () => {
     const sessionFile = path.join(tempDir, "warm-background-policy-session.jsonl");
