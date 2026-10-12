@@ -637,6 +637,14 @@ describe("codex command", () => {
         throw new Error(`unexpected Codex method ${method}`);
       });
       const elapsedClock = vi.spyOn(performance, "now").mockReturnValue(0);
+      const faultResumedBindingRead = () => {
+        if (resumeAccepted) {
+          if (failure === "read") {
+            throw new Error("Invalid Codex app-server binding row");
+          }
+          elapsedClock.mockReturnValue(1_001);
+        }
+      };
       try {
         const result = await runCommand(
           `resume ${threadId}`,
@@ -645,13 +653,12 @@ describe("codex command", () => {
             bindingStore: {
               ...testCodexAppServerBindingStore,
               read: (bindingIdentity) => {
-                if (resumeAccepted) {
-                  if (failure === "read") {
-                    throw new Error("Invalid Codex app-server binding row");
-                  }
-                  elapsedClock.mockReturnValue(1_001);
-                }
+                faultResumedBindingRead();
                 return testCodexAppServerBindingStore.read(bindingIdentity);
+              },
+              readAsync: async (bindingIdentity) => {
+                faultResumedBindingRead();
+                return await testCodexAppServerBindingStore.readAsync(bindingIdentity);
               },
             },
           },
