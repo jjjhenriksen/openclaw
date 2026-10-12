@@ -30,8 +30,7 @@ import { createGatewayInstanceRuntime } from "./server-instance-runtime.js";
 
 const startTurn = vi.hoisted(() => vi.fn<ReturnType<typeof createAgentTurnService>["startTurn"]>());
 
-// mock-isolation: Recovery reaches the real typed facade and restored authority;
-// exclude unrelated request-envelope routing already covered by Gateway request tests.
+// mock-isolation: Exclude request-envelope routing; this composition covers recovery and restoration, not request authorization.
 vi.mock("./server-methods.js", () => ({
   createRequestGatewayMethodRegistry: () => ({ isControlPlaneWrite: () => false }),
   runWithGatewayRequestEnvelope: async (
@@ -40,8 +39,7 @@ vi.mock("./server-methods.js", () => ({
     run: () => Promise<unknown>,
   ) => await run(),
 }));
-// mock-isolation: The restart-recovery owner and live operator restoration, rather
-// than generic synthetic-request ingress, are the authorization boundary under test.
+// mock-isolation: Exclude synthetic-request ingress; real operator restoration is the authority owner exercised here.
 vi.mock("./server-methods/request-authorization.js", () => ({
   authorizeGatewayRequestPreDispatch: async () => ({ error: null }),
 }));
@@ -49,8 +47,7 @@ vi.mock("./server-methods/request-authorization.js", () => ({
 vi.mock("./agent-turn/agent-request-preflight.js", () => ({
   prepareAgentRequestPreflight: ({ request }: { request: unknown }) => ({ request }),
 }));
-// mock-isolation: Substitute only provider execution with a sentinel at the final
-// authority guard; capture, SQLite reload, startup marking and dispatch remain real.
+// mock-isolation: Substitute the agent service with a guarded sentinel; production tool effects require separate runtime proof.
 vi.mock("./agent-turn/agent-turn-service.js", () => ({
   createAgentTurnService: () => ({ startTurn, waitForTurn: vi.fn() }),
 }));
