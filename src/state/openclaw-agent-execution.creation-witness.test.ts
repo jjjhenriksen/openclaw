@@ -625,17 +625,21 @@ it("reserves schema-missing first birth against a sibling captured before its wi
   }
 });
 
-it("refuses an absent witness when another logical owner was captured first", async () => {
+it("creates an absent target through its already captured logical owner", async () => {
   const options = fixture();
   const observed = readDatabasePathIdentitySync(options.path);
   const sibling = captureOpenClawAgentDatabaseExecution(options);
+  let creator: ReturnType<typeof captureOpenClawAgentDatabaseExecution> | undefined;
   try {
-    expect(() =>
-      captureOpenClawAgentDatabaseExecution(options, { expectedCreationIdentity: observed }),
-    ).toThrow(/originally observed target/);
-    expect(fs.existsSync(options.path)).toBe(false);
+    creator = captureOpenClawAgentDatabaseExecution(options, {
+      expectedCreationIdentity: observed,
+    });
+    await creator.prepare(source());
+    await sibling.prepare(source());
+    expect(creator.fileIdentity).toMatchObject({ kind: "file" });
+    expect(sibling.fileIdentity).toEqual(creator.fileIdentity);
   } finally {
-    await sibling.release();
+    await Promise.allSettled([creator?.release(), sibling.release()]);
   }
 });
 
@@ -869,7 +873,7 @@ it("rechecks source authority after registration notification before authorizing
 });
 
 it.skipIf(process.platform === "win32")(
-  "rejects a warm database path replaced by its source callback before granting admission",
+  "finishes an admitted read on its retained file and rejects replacement at the next command",
   async () => {
     const options = fixture();
     const retainedPath = `${options.path}.retained`;
@@ -886,17 +890,18 @@ it.skipIf(process.platform === "win32")(
         replaced = true;
       }
     };
+    const readEntry = (request = source()) =>
+      execution.runExisting(request, (scope) =>
+        scope.execute({
+          type: "session.entry.read",
+          input: { sessionKeys: ["agent:main:missing"] },
+        }),
+      );
     try {
       await execution.prepare(source());
-      await expect(
-        execution.runExisting(requestSource, (scope) =>
-          scope.execute({
-            type: "session.entry.read",
-            input: { sessionKeys: ["agent:main:missing"] },
-          }),
-        ),
-      ).rejects.toThrow(/identity changed/);
+      await expect(readEntry(requestSource)).resolves.toMatchObject({ entries: [] });
       expect(replaced).toBe(true);
+      await expect(readEntry()).rejects.toThrow(/identity changed/);
     } finally {
       if (replaced) {
         fs.unlinkSync(options.path);
