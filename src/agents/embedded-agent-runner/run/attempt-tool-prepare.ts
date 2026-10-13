@@ -344,6 +344,7 @@ export async function prepareEmbeddedAttemptToolBase(params: {
               agentId: params.setup.sessionAgentId,
               webSearchEnabled: attempt.toolOverrides?.webSearch !== false,
               sandboxToolPolicy: params.setup.sandbox?.tools,
+              preparedRequesterPolicy: runtimeCapabilityProfile.policy,
               authStore: attempt.authProfileStore,
               pluginMetadataSnapshot: attempt.preparedModelRuntime?.metadataSnapshot,
             }).kind === "managed";
