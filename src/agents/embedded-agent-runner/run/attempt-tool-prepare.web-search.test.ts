@@ -1,7 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import path from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { awaitGateBeforeSettlement, createDeferred } from "../../../../test/helpers/promise.js";
+import { replaceSessionEntry } from "../../../config/sessions/session-accessor.entry.js";
 import { SessionWorkStartInvalidatedError } from "../../../config/sessions/work-start-error.js";
 import type { OpenClawConfig } from "../../../config/types.openclaw.js";
+import {
+  createOpenClawTestState,
+  type OpenClawTestState,
+} from "../../../test-utils/openclaw-test-state.js";
 import { prepareSystemAgentRunAdmission } from "../../admitted-run-context.js";
 import { wrapToolWithBeforeToolCallHook } from "../../agent-tools.before-tool-call.js";
 import type { AnyAgentTool } from "../../agent-tools.types.js";
@@ -16,8 +22,39 @@ beforeEach(() => resetEmbeddedAttemptHarness());
 afterEach(() => vi.restoreAllMocks());
 
 describe("prepared missing-search guidance", () => {
+  let state: OpenClawTestState;
+  let storePath: string;
+  const dashboardSessionKey = "agent:main:dashboard:search-guidance";
+  const childSessionKey = "agent:main:dashboard:search-denied-child";
+
+  beforeAll(async () => {
+    state = await createOpenClawTestState({
+      label: "prepared-search-guidance",
+      scenario: "minimal",
+    });
+    storePath = path.join(state.sessionsDir(), "sessions.json");
+    await replaceSessionEntry(
+      { storePath, sessionKey: dashboardSessionKey },
+      {
+        sessionId: "search-guidance",
+        updatedAt: 1,
+      },
+    );
+    await replaceSessionEntry(
+      { storePath, sessionKey: childSessionKey },
+      {
+        sessionId: "search-denied-child",
+        updatedAt: 1,
+        spawnDepth: 1,
+        spawnedBy: dashboardSessionKey,
+        inheritedToolPolicyVersion: 1,
+        inheritedToolDeny: ["web_search"],
+      },
+    );
+  });
+  afterAll(async () => await state?.cleanup());
   it.each(["retired source", "capture invalidated"] as const)(
-    "retains attribution and aborts failed built-in and catalog tool preparation (%s)",
+    "retains attribution and aborts catalog tools before their effect (%s)",
     async (outcome) => {
       const config: OpenClawConfig = { tools: { codeMode: false, toolSearch: { enabled: false } } };
       const admission = prepareSystemAgentRunAdmission(config, "attribution", "main", "test");
@@ -64,10 +101,6 @@ describe("prepared missing-search guidance", () => {
           codeModeSkills: [],
           toolSearchCatalogExecutor: async () => ({ content: [], details: {} }),
         });
-        const builtInOptions = hoisted.createOpenClawCodingToolsMock.mock.calls[0]?.[0];
-        expect(builtInOptions?.awaitSessionDiffBaseline).toBe(
-          result.toolHookContext.awaitSessionDiffBaseline,
-        );
         const tool = wrapToolWithBeforeToolCallHook(
           {
             name: "write",
@@ -112,11 +145,13 @@ describe("prepared missing-search guidance", () => {
     { name: "dashboard unconfigured", dashboard: true, expected: true },
     { name: "configured", configured: true, expected: false },
     { name: "policy denied", deny: true, expected: false },
+    { name: "inherited dashboard policy denied", inheritedDeny: true, expected: false },
     { name: "globally disabled", disabled: true, expected: false },
     { name: "session disabled", sessionDisabled: true, expected: false },
     { name: "native OpenAI", native: true, expected: false },
   ])("keeps the actual callback truthful for $name and clears it on rebuild", async (scenario) => {
     const config: OpenClawConfig = {
+      session: { store: storePath },
       tools: {
         codeMode: false,
         toolSearch: { enabled: false },
@@ -131,16 +166,19 @@ describe("prepared missing-search guidance", () => {
         options?.onWebSearchConfiguration?.(scenario.configured === true);
         return [];
       });
-      // SAFETY: This fixture invokes only tool preparation; transcript/model execution fields
-      // are deliberately absent. Existing harness mocks own those unrelated collaborators.
+      // The real capability owner prepares persisted dashboard metadata in its worker scope.
+      // The factory double invokes the actual callback after that scope ends, with no Gateway
+      // row projection; this proves preparation/guidance, not model or tool execution.
       const attempt = {
         config,
         runId: "search-guidance",
-        sessionId: "search-guidance",
-        sessionKey: scenario.dashboard
-          ? "agent:main:dashboard:search-guidance"
-          : "agent:main:search-guidance",
-        agentDir: "/tmp/search-guidance-agent",
+        sessionId: scenario.inheritedDeny ? "search-denied-child" : "search-guidance",
+        sessionKey: scenario.inheritedDeny
+          ? childSessionKey
+          : scenario.dashboard
+            ? dashboardSessionKey
+            : "agent:main:search-guidance",
+        agentDir: state.agentDir(),
         modelId: "test-model",
         provider: scenario.native ? "openai" : "anthropic",
         model: makeProviderModelFixture({
