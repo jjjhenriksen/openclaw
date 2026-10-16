@@ -4,7 +4,6 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { getAsyncWorkSignal, trackAsyncWork } from "../shared/async-work-scope.js";
 import { createDeferredCore, type Deferred } from "../shared/deferred.js";
-import type { UsageOverviewOptions, UsageOverviewSession } from "../shared/usage-types.js";
 import { getAgentDeletionDatabaseCleanup } from "../state/agent-deletion-cleanup.js";
 import { resolveOpenClawAgentSqlitePath } from "../state/openclaw-agent-db.js";
 import { isAbortError } from "./abort-signal.js";
@@ -26,6 +25,7 @@ import type {
   CostUsageSummary,
   SessionCostSummary,
   UsageCacheStatus,
+  UsageCostTranscriptFile,
   UsageDailyBucket,
 } from "./session-cost-usage.types.js";
 
@@ -75,7 +75,10 @@ function isUsageCostRefreshQueued(databasePath: string): boolean {
 async function flushPendingUsageCostRefresh(
   prepared: PreparedUsageCostWorker,
   sessionFiles?: string[],
+  maxPublicationWaitMs = Infinity,
 ): Promise<void> {
+  const signal = getAsyncWorkSignal();
+  signal?.throwIfAborted();
   const key = prepared.location.databasePath;
   const pending: Promise<void>[] = [];
   for (const refreshes of usageCostRefreshes.values()) {
@@ -105,7 +108,24 @@ async function flushPendingUsageCostRefresh(
     }
     state.resume?.();
   }
-  await Promise.all(pending);
+  if (pending.length === 0) {
+    return;
+  }
+  // Reports can serve the last committed projection after their wait budget;
+  // exact reads keep awaiting their selected sessions. Publication owns the refresh.
+  const waiting = new AbortController();
+  const stopWaiting = () => waiting.abort();
+  signal?.addEventListener("abort", stopWaiting, { once: true });
+  try {
+    await Promise.race([
+      Promise.all(pending),
+      waitForUsageCostRefresh(waiting.signal, maxPublicationWaitMs),
+    ]);
+    signal?.throwIfAborted();
+  } finally {
+    signal?.removeEventListener("abort", stopWaiting);
+    stopWaiting();
+  }
 }
 
 export async function loadCostUsageSummary(params: {
@@ -199,59 +219,39 @@ async function loadAggregateCostUsageSummary(
 }
 
 type SessionCostReadParams = {
-  sessions: Array<{ sessionId?: string; sessionFile: string }>;
+  sessions: Array<{
+    sessionId?: string;
+    sessionFile: string;
+    transcriptFile?: UsageCostTranscriptFile;
+  }>;
   config?: OpenClawConfig;
   agentId: string;
   startMs?: number;
   endMs?: number;
-  projection?: "overview";
   includeUntimestamped?: boolean;
   dayBucket?: UsageDailyBucket;
   requestRefresh?: boolean;
+  maxPublicationWaitMs?: number;
+  reportBudgetBytes?: number;
 };
 
-export async function loadSessionCostSummariesFromCache(
-  params: SessionCostReadParams,
-): Promise<{ summaries: Array<SessionCostSummary | null>; cacheStatus: UsageCacheStatus }> {
+export async function loadSessionCostSummariesFromCache(params: SessionCostReadParams): Promise<{
+  summaries: Array<SessionCostSummary | null>;
+  cacheStatus: UsageCacheStatus;
+  remainingReportBytes?: number;
+}> {
   const result = await loadSessionCostResultFromCache(params);
   if (result.kind !== "sessions") {
     throw new Error("Usage worker returned an invalid session summary");
   }
-  return { summaries: result.summaries, cacheStatus: result.cacheStatus };
+  return {
+    summaries: result.summaries,
+    cacheStatus: result.cacheStatus,
+    remainingReportBytes: result.remainingReportBytes,
+  };
 }
 
-export async function loadSessionCostOverviewFromCache(
-  params: Omit<SessionCostReadParams, "sessions" | "projection"> & {
-    sessions: UsageOverviewSession[];
-    options: UsageOverviewOptions;
-    projection?: "overview";
-  },
-) {
-  const result = await loadSessionCostResultFromCache({
-    ...params,
-    sessions: params.sessions.flatMap((session) => session.instances),
-    projection: params.projection,
-    overview: {
-      sessions: params.sessions,
-      options: params.options,
-      compact: params.projection === "overview",
-    },
-  });
-  if (result.kind !== "overview") {
-    throw new Error("Usage worker returned an invalid overview");
-  }
-  return { ...result.result, cacheStatus: result.cacheStatus };
-}
-
-function loadSessionCostResultFromCache(
-  params: SessionCostReadParams & {
-    overview?: {
-      sessions: UsageOverviewSession[];
-      options: UsageOverviewOptions;
-      compact?: boolean;
-    };
-  },
-) {
+function loadSessionCostResultFromCache(params: SessionCostReadParams) {
   const prepared = prepareUsageCostWorker({
     ...params,
     sessionFiles: params.sessions.map((session) => session.sessionFile),
@@ -260,19 +260,14 @@ function loadSessionCostResultFromCache(
 }
 
 async function loadCapturedSessionCostSummariesFromCache(
-  params: SessionCostReadParams & {
-    overview?: {
-      sessions: UsageOverviewSession[];
-      options: UsageOverviewOptions;
-      compact?: boolean;
-    };
-  },
+  params: SessionCostReadParams,
   prepared: PreparedUsageCostWorker,
-): Promise<Extract<UsageCostWorkerResult, { kind: "sessions" | "overview" }>> {
+): Promise<Extract<UsageCostWorkerResult, { kind: "sessions" }>> {
   const { databasePath, storePath } = prepared.location;
   await flushPendingUsageCostRefresh(
     prepared,
     params.sessions.map((session) => session.sessionFile),
+    params.maxPublicationWaitMs,
   );
   const pricingFingerprint = await resolveUsageCostPricingFingerprint(
     prepared.config,
@@ -280,16 +275,15 @@ async function loadCapturedSessionCostSummariesFromCache(
   );
   const result = await runUsageCostWorker(prepared, {
     kind: "sessions",
-    projection: params.projection,
-    overview: params.overview,
     pricingFingerprint,
     sessions: params.sessions,
     startMs: params.startMs,
     endMs: params.endMs,
     includeUntimestamped: params.includeUntimestamped,
+    reportBudgetBytes: params.reportBudgetBytes,
     dayBucket: resolveUsageCostWorkerDayBucket(params.dayBucket),
   });
-  if (result.kind !== "sessions" && result.kind !== "overview") {
+  if (result.kind !== "sessions") {
     throw new Error("Usage worker returned an invalid session summary");
   }
   const { cacheStatus, staleSessionFiles } = result;
@@ -314,9 +308,7 @@ async function loadCapturedSessionCostSummariesFromCache(
         : await isSessionCostUsageRefreshRunning(params.agentId, databasePath)))
   ) {
     cacheStatus.status = "refreshing";
-    for (const summary of result.kind === "sessions"
-      ? result.summaries
-      : result.result.sessions.map((session) => session.usage)) {
+    for (const summary of result.summaries) {
       if (summary?.staleSince !== undefined) {
         summary.refreshing = true;
       }
@@ -523,12 +515,8 @@ async function runQueuedUsageCostRefresh(
               }
             }
           }
-          const rebuildRows = fullRefreshRequested
-            ? [...state.pendingRebuildRows.values()]
-            : sessionFiles.flatMap((file) => {
-                const row = state.pendingRebuildRows.get(file);
-                return row ? [row] : [];
-              });
+          // Caller selectors can differ from canonical keys; the worker matches repair facts.
+          const rebuildRows = [...state.pendingRebuildRows.values()];
           if (fullRefreshRequested) {
             state.fullRefreshRequested = false;
           }
@@ -544,10 +532,10 @@ async function runQueuedUsageCostRefresh(
             onRemaining: (files) => {
               for (const { sessionFile, rollupId } of files) {
                 remainingRollupIds.add(rollupId);
-                state.pendingSessionFiles.set(
-                  state.pendingRebuildRows.has(rollupId) ? rollupId : sessionFile,
-                  null,
-                );
+                state.pendingSessionFiles.set(sessionFile, null);
+                if (state.pendingRebuildRows.has(rollupId)) {
+                  state.pendingSessionFiles.set(rollupId, null);
+                }
               }
             },
             rebuildRows,
@@ -572,7 +560,11 @@ async function runQueuedUsageCostRefresh(
             continue;
           }
           for (const row of rebuildRows) {
-            if (!remainingRollupIds.has(row.key) && state.pendingRebuildRows.get(row.key) === row) {
+            if (
+              (fullRefreshRequested || sessionFiles.includes(row.key)) &&
+              !remainingRollupIds.has(row.key) &&
+              state.pendingRebuildRows.get(row.key) === row
+            ) {
               state.pendingRebuildRows.delete(row.key);
             }
           }

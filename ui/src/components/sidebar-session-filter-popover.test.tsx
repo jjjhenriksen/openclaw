@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import "../test-helpers/app-sidebar-suite.ts";
 import { mountSolid } from "../test-helpers/mount-solid.ts";
 import { waitForSolid } from "../test-helpers/solid-settle.ts";
@@ -13,12 +13,24 @@ it.each([false, true])(
     const anchor = document.createElement("button");
     document.body.append(container);
     container.append(anchor);
-    const holdReposition = (event: Event) => event.stopImmediatePropagation();
-    container.addEventListener("wa-reposition", holdReposition, true);
+    onTestFinished(() => container.remove());
+    if (chosen) {
+      container.addEventListener(
+        "toggle",
+        () => {
+          container
+            .querySelector<HTMLButtonElement>(".sidebar-session-filter-panel button")
+            ?.focus();
+        },
+        { once: true, capture: true },
+      );
+    }
     mountSolid(
       () => (
         <SidebarSessionFilterPopover
           anchor={anchor}
+          label="Filter sessions"
+          onClose={() => {}}
           content={
             <>
               <div id="sidebar-sessions-status">
@@ -36,11 +48,11 @@ it.each([false, true])(
     const control = container.querySelector<HTMLButtonElement>(
       "openclaw-sidebar-session-filter-popover button",
     )!;
-    if (chosen) {
-      control.focus();
-    }
-    container.removeEventListener("wa-reposition", holdReposition, true);
-    container.querySelector("wa-popup")!.dispatchEvent(new CustomEvent("wa-reposition"));
-    expect(document.activeElement).toBe(chosen ? control : initial);
+    await waitForSolid(() => expect(document.activeElement).toBe(chosen ? control : initial));
+    control.focus();
+    container
+      .querySelector(".sidebar-session-filter-panel")!
+      .dispatchEvent(new CustomEvent("overlay-after-show"));
+    expect(document.activeElement).toBe(control);
   },
 );

@@ -30,7 +30,6 @@ import { resolveIncognitoOpenClawAgentSqlitePath } from "../../state/openclaw-ag
 import { observeMainThreadSql } from "../../test-utils/main-thread-sql-spies.test-support.js";
 import { createOpenClawTestState } from "../../test-utils/openclaw-test-state.js";
 import type { TemplateContext } from "../templating.js";
-import { SILENT_REPLY_TOKEN } from "../tokens.js";
 import type { ReplyPayload } from "../types.js";
 import type { InternalGetReplyOptions } from "./get-reply.types.js";
 import { scheduleFollowupDrain, type FollowupRun } from "./queue.js";
@@ -175,7 +174,7 @@ export function registerReplyAdmissionCases({
       });
       const reply = await run();
       expect(runEmbeddedAgentMock).toHaveBeenCalledOnce();
-      expect(reply).toMatchObject({ text: SILENT_REPLY_TOKEN });
+      expect(reply).toEqual({});
       if (order === "after cleanup") {
         await persistAbort();
       }
@@ -267,32 +266,29 @@ export function registerReplyAdmissionCases({
       authorized.authorization,
       "session-backed retirement authority",
     );
-    try {
-      duplicate.followupRun.operatorAuthority = createAdmittedRunOperatorAuthority({
-        profileId,
-        scopes,
-        assertCurrent: authority.assertCurrent,
-      });
+    onTestFinished(() => authority.release?.());
+    duplicate.followupRun.operatorAuthority = createAdmittedRunOperatorAuthority({
+      profileId,
+      scopes,
+      assertCurrent: authority.assertCurrent,
+    });
 
-      await expect(duplicate.run()).resolves.toBeUndefined();
+    await expect(duplicate.run()).resolves.toBeUndefined();
 
-      expect(duplicate.sourceTurnId).toBe(sourceTurnId);
-      expect(onAdopted).not.toHaveBeenCalled();
-      expect(queueEmbeddedAgentMessageMock).not.toHaveBeenCalled();
-      expect(runEmbeddedAgentMock).not.toHaveBeenCalled();
-      const stored = expectDefined(
-        loadSessionEntry({ storePath, sessionKey: "main", readConsistency: "latest" }),
-        "stored terminal session",
-      );
-      expect(stored).toMatchObject({
-        status: "done",
-        restartRecoveryTerminalRunIds: [sourceTurnId],
-      });
-      expect(stored.restartRecoveryDeliveryRunId).toBeUndefined();
-      expect(stored.restartRecoveryDeliverySourceRunId).toBeUndefined();
-    } finally {
-      authority.release?.();
-    }
+    expect(duplicate.sourceTurnId).toBe(sourceTurnId);
+    expect(onAdopted).not.toHaveBeenCalled();
+    expect(queueEmbeddedAgentMessageMock).not.toHaveBeenCalled();
+    expect(runEmbeddedAgentMock).not.toHaveBeenCalled();
+    const stored = expectDefined(
+      loadSessionEntry({ storePath, sessionKey: "main", readConsistency: "latest" }),
+      "stored terminal session",
+    );
+    expect(stored).toMatchObject({
+      status: "done",
+      restartRecoveryTerminalRunIds: [sourceTurnId],
+    });
+    expect(stored.restartRecoveryDeliveryRunId).toBeUndefined();
+    expect(stored.restartRecoveryDeliverySourceRunId).toBeUndefined();
   });
 
   it.each(["backend", "adoption"] as const)(
@@ -335,12 +331,13 @@ export function registerReplyAdmissionCases({
             : undefined,
       });
       try {
-        await expect(run()).resolves.toMatchObject({
-          text:
-            stage === "backend"
-              ? SILENT_REPLY_TOKEN
-              : "⚠️ Gateway is restarting. Please wait a few seconds and try again.",
-        });
+        await expect(run()).resolves.toEqual(
+          stage === "backend"
+            ? {}
+            : {
+                text: "⚠️ Gateway is restarting. Please wait a few seconds and try again.",
+              },
+        );
         expect(runEmbeddedAgentMock).toHaveBeenCalledTimes(stage === "backend" ? 1 : 0);
         expect(scheduleFollowupDrain).toHaveBeenCalledOnce();
         expect(loadSessionEntry({ storePath, sessionKey: "main" })).toMatchObject({

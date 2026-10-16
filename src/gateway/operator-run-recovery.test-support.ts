@@ -31,6 +31,7 @@ export async function createOperatorRecoveryFixture(params: {
   sharedGeneration?: string;
   clientInfo?: Pick<GatewayClientInfo, "id" | "mode">;
   localOperator?: boolean;
+  sourceIngress?: "control-ui" | "internal";
 }) {
   let config = params.config;
   const context = params.context;
@@ -39,8 +40,10 @@ export async function createOperatorRecoveryFixture(params: {
     profileId: params.profileId,
     scopes: params.scopes ?? ["operator.admin"],
   });
-  client.connect.client.id = params.clientInfo?.id ?? "openclaw-control-ui";
-  client.connect.client.mode = params.clientInfo?.mode ?? "webchat";
+  client.connect.client.id =
+    params.clientInfo?.id ?? (params.sourceIngress === "internal" ? "cli" : "openclaw-control-ui");
+  client.connect.client.mode =
+    params.clientInfo?.mode ?? (params.sourceIngress === "internal" ? "cli" : "webchat");
   // These facts represent the authenticated handshake, not session attribution.
   client.internal = {
     authenticatedOperator: true,
@@ -113,7 +116,7 @@ export async function createOperatorRecoveryFixture(params: {
     spawnDepth: 0,
     restartRecoveryDeliveryRunId: target.recoveryRunId,
     restartRecoveryDeliverySourceRunId: target.sourceRunId,
-    restartRecoverySourceIngress: "control-ui",
+    restartRecoverySourceIngress: params.sourceIngress ?? "control-ui",
     createdActor: { type: "human", source: "profile", id: params.profileId },
   };
   entry.restartRecoveryOperatorSource = expectDefined(

@@ -12,39 +12,139 @@ import {
   surface,
   trigger,
 } from "../../test-helpers/solid-menu.tsx";
-import { Menu, type MenuItem, type MenuProps } from "./menu.tsx";
+import { Menu, type MenuEntry, type MenuItem, type MenuProps } from "./menu.tsx";
 
 afterEach(cleanup);
 
 describe("Solid menu navigation", () => {
-  it("uses real link leaves, skips disabled links, and selects once by click or Enter", async () => {
+  it("materializes lazy content at first keyboard admission and retains it when reopened", async () => {
+    let itemReads = 0;
+    let childrenReads = 0;
+    const view = mountMenu({
+      lazy: true,
+      get items() {
+        itemReads += 1;
+        return [{ id: "ready", label: "Ready" }];
+      },
+      get children() {
+        childrenReads += 1;
+        return <span>Lazy heading</span>;
+      },
+    });
+    expect(itemReads).toBe(0);
+    expect(childrenReads).toBe(0);
+    trigger().focus();
+    await userEvent.keyboard("{ArrowDown}");
+    await phase(surface(), "open");
+    const ready = item("Ready");
+    expect(document.activeElement).toBe(ready);
+    expect(childrenReads).toBe(1);
+    await userEvent.keyboard("{Escape}");
+    await phase(surface(), "hidden");
+    expect(view.handle.open()).toBe(true);
+    await phase(surface(), "open");
+    expect(item("Ready")).toBe(ready);
+    expect(childrenReads).toBe(1);
+  });
+
+  it.each([false, true])("refuses lazy admission without active effects (veto %s)", (veto) => {
+    const view = mountMenu({
+      lazy: true,
+      items: veto ? [{ id: "ready", label: "Ready" }] : [],
+      onBeforeShow: (event) => {
+        if (veto) {
+          event.preventDefault();
+        }
+      },
+    });
+    trigger().focus();
+    expect(view.handle.open()).toBe(false);
+    expect(surface().matches(":popover-open")).toBe(false);
+    expect(document.activeElement).toBe(trigger());
+    expect(openSurfaces()).toEqual([]);
+  });
+
+  it("navigates from search through grouped compound rows and custom controls", async () => {
     const selected: string[] = [];
+    let pins = 0;
+    const [revision, setRevision] = createSignal(0);
     mountMenu({
-      items: [
-        { id: "new", label: "New session", href: "/new?agent=main", class: "new-session" },
-        { id: "disabled", label: "Unavailable", href: "/new?agent=other", disabled: true },
-        { id: "action", label: "Action" },
-      ],
+      get items(): MenuEntry[] {
+        revision();
+        return [
+          { kind: "content", id: "search", content: <input data-search aria-label="Find agent" /> },
+          {
+            kind: "group",
+            id: "agents",
+            class: "agent-list",
+            items: [
+              {
+                id: "alpha",
+                label: "Alpha",
+                as: "div",
+                content: (
+                  <>
+                    Alpha
+                    <button
+                      data-form-control
+                      tabindex="-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        pins += 1;
+                      }}
+                    >
+                      Pin Alpha
+                    </button>
+                  </>
+                ),
+              },
+              { id: "beta", label: "Beta" },
+            ],
+          },
+          {
+            id: "footer",
+            label: "Footer",
+            render: (attributes) => <button {...attributes}>Footer</button>,
+          },
+        ];
+      },
       onSelect: (entry) => selected.push(entry.id),
     });
     await openMenu();
-    const link = surface().querySelector<HTMLAnchorElement>('a[data-value="new"]')!;
-    expect(link.getAttribute("href")).toBe("/new?agent=main");
-    expect(link.getAttribute("role")).toBe("menuitem");
-    expect(link.classList.contains("new-session")).toBe(true);
-    expect(link.querySelector("a, button")).toBeNull();
-    expect(document.activeElement).toBe(link);
+    const group = surface().querySelector(".agent-list");
+    const footer = item("Footer");
+    const alpha = surface().querySelector<HTMLElement>('[data-value="alpha"]')!;
+    alpha.focus();
+    setRevision(1);
+    flush();
+    expect(surface().querySelector(".agent-list")).toBe(group);
+    expect(item("Footer")).toBe(footer);
+    expect(document.activeElement).toBe(alpha);
+    const search = surface().querySelector<HTMLInputElement>("input")!;
+    search.focus();
     await userEvent.keyboard("{ArrowDown}");
-    expect(document.activeElement).toBe(item("Action"));
+    expect(document.activeElement).toBe(alpha);
+    await userEvent.tab();
+    expect(document.activeElement).toBe(surface().querySelector("[data-form-control]"));
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(alpha);
     await userEvent.keyboard("{ArrowUp}");
-    expect(document.activeElement).toBe(link);
-    await userEvent.click(link);
-    await phase(surface(), "hidden");
-    expect(selected).toEqual(["new"]);
-    await openMenu();
+    expect(document.activeElement).toBe(search);
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    expect(document.activeElement).toBe(item("Beta"));
+    await userEvent.click(surface().querySelector<HTMLButtonElement>("[data-form-control]")!);
+    expect(pins).toBe(1);
+    expect(selected).toEqual([]);
+    await userEvent.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(item("Beta"));
     await userEvent.keyboard("{Enter}");
     await phase(surface(), "hidden");
-    expect(selected).toEqual(["new", "new"]);
+    expect(selected).toEqual(["beta"]);
+    await openMenu();
+    item("Footer").focus();
+    await userEvent.keyboard("{Enter}");
+    await phase(surface(), "hidden");
+    expect(selected).toEqual(["beta", "footer"]);
   });
 
   it("preserves modified, middle, and context-menu link gestures without selecting", async () => {
@@ -266,6 +366,8 @@ describe("Solid menu navigation", () => {
   it.each(["ltr", "rtl"] as const)("preserves sibling → Back → Down in %s", async (dir) => {
     mountMenu({ dir });
     await openMenu();
+    expect(trigger("people-assign").dataset.value).toBe("assign");
+    expect(trigger("people-move").dataset.value).toBe("move");
     await openMenu("people-assign");
     trigger("people-move").focus();
     await userEvent.keyboard(dir === "ltr" ? "{ArrowRight}" : "{ArrowLeft}");
@@ -341,17 +443,6 @@ describe("Solid menu navigation", () => {
     },
   );
 
-  it("opens at the last enabled item with ArrowUp and exits with native Tab", async () => {
-    const view = mountMenu();
-    trigger().focus();
-    await userEvent.keyboard("{ArrowUp}");
-    await phase(surface(), "open");
-    expect(document.activeElement).toBe(item("Archive"));
-    await userEvent.tab();
-    await phase(surface(), "hidden");
-    expect(document.activeElement).toBe(view.getByRole("button", { name: "After menu" }));
-  });
-
   it("clears search before closing the deepest branch and restores each trigger", async () => {
     mountMenu({
       items: [
@@ -382,6 +473,7 @@ describe("Solid menu navigation", () => {
 
   it("skips ineligible controls while preserving editing and native Tab exit", async () => {
     const view = mountMenu({
+      items: [],
       children: (
         <>
           <button data-form-control="">Default</button>
@@ -434,6 +526,50 @@ describe("Solid menu navigation", () => {
     expect(document.activeElement).toBe(view.getByRole("button", { name: "After menu" }));
   });
 
+  it("moves between menu rows and embedded settings with Tab", async () => {
+    const view = mountMenu({
+      items: [
+        { id: "before", label: "Before settings" },
+        {
+          kind: "content",
+          id: "settings",
+          content: (
+            <>
+              <input aria-label="Filter settings" data-search="" />
+              <button data-form-control="">Send always</button>
+              <button data-form-control="">Receive always</button>
+            </>
+          ),
+        },
+        { id: "after", label: "After settings" },
+      ],
+    });
+    await openMenu();
+    const before = item("Before settings");
+    const after = item("After settings");
+    const search = view.getByRole("textbox", { name: "Filter settings" });
+    const send = view.getByRole("button", { name: "Send always" });
+    const receive = view.getByRole("button", { name: "Receive always" });
+    before.focus();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(search);
+    await userEvent.tab();
+    expect(document.activeElement).toBe(send);
+    await userEvent.tab();
+    expect(document.activeElement).toBe(receive);
+    await userEvent.tab();
+    expect(document.activeElement).toBe(after);
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(receive);
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(send);
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(search);
+    await userEvent.tab({ shift: true });
+    expect(document.activeElement).toBe(before);
+    expect(surface().matches(":popover-open")).toBe(true);
+  });
+
   it("keeps Tab in the current menu when a descendant menu has visible controls", async () => {
     let veto = true;
     const view = render(() => (
@@ -454,7 +590,7 @@ describe("Solid menu navigation", () => {
           </Menu>
           <input aria-label="Last control" data-form-control="" />
         </Menu>
-        <button>After menu</button>
+        <button tabindex={0}>After menu</button>
       </>
     ));
     flush();

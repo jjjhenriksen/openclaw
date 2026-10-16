@@ -9,6 +9,7 @@ import type {
 import type { GatewayBrowserClient } from "../api/gateway.ts";
 import type { AgentsListResult, GatewaySessionRow, SessionsListResult } from "../api/types.ts";
 import type { RouteId } from "../app-route-paths.ts";
+import { createApplicationNavigationPreferences } from "../app/bootstrap-navigation-preferences.ts";
 import { createApplicationConfigCapability } from "../app/config.ts";
 import type {
   ApplicationContext,
@@ -19,6 +20,8 @@ import type { ExecApprovalRequest } from "../app/exec-approval.ts";
 import type { ApplicationOverlays } from "../app/overlays-types.ts";
 import type { AppSidebarElement, AppSidebarOwner } from "../components/app-sidebar.tsx";
 import type { AgentIdentityCapability } from "../lib/agents/identity.ts";
+import { createInitialConfigState } from "../lib/config/config-state-model.ts";
+import { isSessionRunActive } from "../lib/session-run-state.ts";
 import {
   createSessionCapability,
   type SessionCapability,
@@ -53,13 +56,7 @@ const sidebarSessionGatewayBindings = new WeakMap<
 export type SidebarLifecycleState = AppSidebarElement &
   Omit<AppSidebarOwner, keyof AppSidebarElement>;
 
-export type TestSessionMenu = HTMLElement & {
-  forkDisabled: boolean;
-  forkFromLastCompleted: boolean;
-  onAction: (action: { kind: "fork" }) => void;
-  selectionCount: number;
-  readonly updateComplete: Promise<boolean>;
-};
+export type TestSessionMenu = HTMLElementTagNameMap["openclaw-session-menu"];
 
 export function createGatewayHarness(client: GatewayBrowserClient) {
   const originalRequest =
@@ -305,6 +302,8 @@ export function createSessionsHarness(agentId: string, keys: string[]) {
     },
     subscribeCreated: () => () => undefined,
     isPreparedWorkSession: () => false,
+    isRunVisuallyActive: (row: GatewaySessionRow) =>
+      scopedSessions?.isRunVisuallyActive(row) ?? isSessionRunActive(row),
     pullRequestSummary: (key: string) => pullRequestSummaries.get(key),
     setPullRequestSummary(key: string, summary: SessionCatalogPullRequestSummary | undefined) {
       if (summary) {
@@ -444,6 +443,7 @@ export function createSessionsHarness(agentId: string, keys: string[]) {
       },
       selection,
     );
+    scopedSessions.subscribe(notify);
   });
   const publish = (statePatch: Partial<SessionState>) => {
     state = { ...state, ...statePatch };
@@ -518,6 +518,7 @@ export function createContext(
     config: createApplicationConfigCapability({ resourceBasePath: "" }),
     gateway,
     ...lifecycle,
+    navigation: createApplicationNavigationPreferences(lifecycle.theme),
     sessions,
     plugins: {
       registrations: () => [],
@@ -528,6 +529,11 @@ export function createContext(
     placementStartup: { pause: vi.fn<ApplicationContext["placementStartup"]["pause"]>() },
     agents,
     agentIdentity,
+    runtimeConfig: {
+      state: createInitialConfigState(gateway.snapshot),
+      ensureLoaded: async () => undefined,
+      subscribe: () => () => undefined,
+    },
     scopeUpgrade: hiddenScopeUpgradeCapability,
     overlays: {
       snapshot: { approvalQueue },

@@ -1,5 +1,15 @@
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  assert,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { awaitGateBeforeSettlement, createDeferred } from "../../../../test/helpers/promise.js";
 import { replaceSessionEntry } from "../../../config/sessions/session-accessor.entry.js";
 import { SessionWorkStartInvalidatedError } from "../../../config/sessions/work-start-error.js";
@@ -53,16 +63,29 @@ describe("prepared missing-search guidance", () => {
     );
   });
   afterAll(async () => await state?.cleanup());
-  it.each(["retired source", "capture invalidated"] as const)(
-    "retains attribution and aborts catalog tools before their effect (%s)",
-    async (outcome) => {
+  it.each(
+    (["built-in", "catalog"] as const).flatMap((surface) =>
+      (["retired source", "capture invalidated"] as const).map((outcome) => ({ surface, outcome })),
+    ),
+  )(
+    "aborts $surface tools before parameter preparation or effects ($outcome)",
+    async ({ surface, outcome }) => {
       const config: OpenClawConfig = { tools: { codeMode: false, toolSearch: { enabled: false } } };
       const admission = prepareSystemAgentRunAdmission(config, "attribution", "main", "test");
       const entered = createDeferred();
       const baseline = createDeferred();
       const runAbortController = new AbortController();
       const failure = new SessionWorkStartInvalidatedError("capture invalidated");
+      const prepare = vi.fn(async (params: unknown) => params);
       const execute = vi.fn(async () => ({ content: [], details: {} }));
+      const fixtureTool: AnyAgentTool = {
+        name: "write",
+        label: "Write",
+        description: "Write fixture",
+        parameters: { type: "object", properties: {} },
+        prepareBeforeToolCallParams: prepare,
+        execute,
+      };
       let result: Awaited<ReturnType<typeof prepareEmbeddedAttemptToolBase>> | undefined;
       let pending: ReturnType<AnyAgentTool["execute"]> | undefined;
       try {
@@ -87,7 +110,17 @@ describe("prepared missing-search guidance", () => {
             await baseline.promise;
           },
         } as EmbeddedRunAttemptInternalParams;
-        hoisted.createOpenClawCodingToolsMock.mockReturnValue([]);
+        // Built-ins are wrapped by the factory, not by the later catalog hook path.
+        // Consume only the callback forwarded to that factory so a missing wire fails here.
+        hoisted.createOpenClawCodingToolsMock.mockImplementation((options) =>
+          surface === "built-in"
+            ? [
+                wrapToolWithBeforeToolCallHook(fixtureTool, {
+                  awaitSessionDiffBaseline: options?.awaitSessionDiffBaseline,
+                }),
+              ]
+            : [],
+        );
         result = await prepareEmbeddedAttemptToolBase({
           attempt,
           agentDir: "/tmp/attribution-agent",
@@ -101,22 +134,18 @@ describe("prepared missing-search guidance", () => {
           codeModeSkills: [],
           toolSearchCatalogExecutor: async () => ({ content: [], details: {} }),
         });
-        const tool = wrapToolWithBeforeToolCallHook(
-          {
-            name: "write",
-            label: "Write",
-            description: "Write fixture",
-            parameters: { type: "object", properties: {} },
-            execute,
-          },
-          result.toolHookContext,
-        );
-        pending = tool.execute("catalog-attribution", {});
+        const tool =
+          surface === "built-in"
+            ? result.toolsRaw[0]
+            : wrapToolWithBeforeToolCallHook(fixtureTool, result.toolHookContext);
+        assert(tool);
+        pending = tool.execute(`${surface}-attribution`, {});
         await awaitGateBeforeSettlement(
           entered.promise,
           pending,
-          "Catalog tool bypassed attribution",
+          `${surface} tool bypassed attribution`,
         );
+        expect(prepare).not.toHaveBeenCalled();
         expect(execute).not.toHaveBeenCalled();
         if (outcome === "retired source") {
           admission.close();
@@ -129,6 +158,7 @@ describe("prepared missing-search guidance", () => {
         if (outcome === "capture invalidated") {
           expect(runAbortController.signal.reason).toBe(failure);
         }
+        expect(prepare).not.toHaveBeenCalled();
         expect(execute).not.toHaveBeenCalled();
       } finally {
         baseline.resolve();

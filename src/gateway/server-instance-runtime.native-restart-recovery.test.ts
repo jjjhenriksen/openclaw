@@ -5,7 +5,9 @@ import {
   GATEWAY_CLIENT_IDS,
   GATEWAY_CLIENT_MODES,
 } from "../../packages/gateway-protocol/src/client-info.js";
+import { persistAuthProfileBatch } from "../agents/auth-profiles/upsert-with-lock.js";
 import { markStartupOrphanedMainSessionsForRecovery } from "../agents/main-session-recovery/main-session-restart-recovery-marking.js";
+import { mainSessionRecoveryLog } from "../agents/main-session-recovery/main-session-restart-recovery-shared.js";
 import { recoverStore } from "../agents/main-session-recovery/main-session-restart-recovery-store.js";
 import { AUTOMATIONS_TOOL_NAME } from "../agents/tools/automations-tool-name.js";
 import { setRuntimeConfigSnapshot } from "../config/runtime-snapshot.js";
@@ -61,6 +63,7 @@ vi.mock("./agent-turn/agent-turn-service.js", () => ({
 
 afterEach(() => {
   startTurn.mockReset();
+  vi.restoreAllMocks();
   resetAgentEventsForTest();
 });
 
@@ -71,19 +74,45 @@ describe("cold restart recovery of native operator input", () => {
     "Control UI source",
     "unowned delegated source",
     "detached cron input",
+    "mismatched agent",
+    "mismatched session key",
     "mismatched incarnation",
     "mismatched lifecycle",
     "device revoked after admission",
     "role reassigned after admission",
   ] as const)("guards real automation writes for %s", async (scenario) => {
     await withOpenClawTestState({ scenario: "minimal" }, async (state) => {
-      const sourceUnavailable = [
-        "unowned delegated source",
-        "detached cron input",
+      const warnings: string[] = [];
+      vi.spyOn(mainSessionRecoveryLog, "warn").mockImplementation((message) =>
+        warnings.push(message),
+      );
+      const sourceMissing = ["unowned delegated source", "detached cron input"].includes(scenario);
+      const sourceMismatch = [
+        "mismatched agent",
+        "mismatched session key",
         "mismatched incarnation",
         "mismatched lifecycle",
       ].includes(scenario);
-      const config = { tools: { allow: [AUTOMATIONS_TOOL_NAME] } };
+      const sourceUnavailable = sourceMissing || sourceMismatch;
+      const config = {
+        agents: { defaults: { model: "openai/gpt-4.1" } },
+        tools: { allow: [AUTOMATIONS_TOOL_NAME] },
+      };
+      // The real Cron owner validates model availability even for a disabled job.
+      // A private synthetic profile satisfies that prerequisite without calling a provider.
+      await persistAuthProfileBatch({
+        stateDir: state.stateDir,
+        profiles: [
+          {
+            profileId: "openai:native-recovery-test",
+            credential: {
+              type: "api_key",
+              provider: "openai",
+              key: "synthetic-native-recovery-key",
+            },
+          },
+        ],
+      });
       setRuntimeConfigSnapshot(config);
       const cronStorePath = path.join(state.stateDir, "cron", "jobs.json");
       const cron = new CronService({
@@ -144,25 +173,24 @@ describe("cold restart recovery of native operator input", () => {
       expect(fixture.entry.restartRecoverySourceIngress).toBe(
         scenario === "Control UI source" ? "control-ui" : "internal",
       );
+      const savedSource = sourceMissing
+        ? undefined
+        : {
+            ...expectDefined(fixture.entry.restartRecoveryOperatorSource, "original host source"),
+            ...(scenario === "mismatched agent" ? { agentId: "unrelated-agent" } : {}),
+            ...(scenario === "mismatched session key"
+              ? { sessionKey: "agent:main:unrelated-session" }
+              : {}),
+            ...(scenario === "mismatched incarnation" ? { sessionId: "unrelated-session" } : {}),
+            ...(scenario === "mismatched lifecycle"
+              ? { lifecycleRevision: "unrelated-lifecycle" }
+              : {}),
+          };
       await replaceSessionEntry(fixture.target, {
         ...fixture.entry,
         status: "interrupted",
         lifecycleRunId: fixture.target.sourceRunId,
-        restartRecoveryOperatorSource:
-          scenario === "unowned delegated source" || scenario === "detached cron input"
-            ? undefined
-            : {
-                ...expectDefined(
-                  fixture.entry.restartRecoveryOperatorSource,
-                  "original host source",
-                ),
-                ...(scenario === "mismatched incarnation"
-                  ? { sessionId: "unrelated-session" }
-                  : {}),
-                ...(scenario === "mismatched lifecycle"
-                  ? { lifecycleRevision: "unrelated-lifecycle" }
-                  : {}),
-              },
+        restartRecoveryOperatorSource: savedSource,
       });
       const messages = [
         {
@@ -275,16 +303,33 @@ describe("cold restart recovery of native operator input", () => {
           handledSessionKeys: new Set(),
           gatewayRuntime: runtime.recovery,
         });
-        if (sourceUnavailable) {
+        if (sourceMissing) {
           expect(result).toEqual({ started: 0, settled: 0, failed: 0, skipped: 1 });
           expect(startTurn).not.toHaveBeenCalled();
           const entry = await readSessionEntryReadOnlyInWorker(fixture.target);
           expect(entry?.mainRestartRecovery?.tombstone).toBeDefined();
+        } else if (sourceMismatch) {
+          // Current Gateway restoration owns exact-claim validation, not the
+          // transcript classifier. Refusal must precede turn/tool execution.
+          expect(result).toEqual({ started: 0, settled: 0, failed: 1, skipped: 0 });
+          expect(startTurn).not.toHaveBeenCalled();
+          const entry = await readSessionEntryReadOnlyInWorker(fixture.target);
+          expect(warnings.join("\n")).toContain(
+            "Restart recovery operator source no longer owns this input.",
+          );
+          expect(entry?.mainRestartRecovery?.tombstone).toBeUndefined();
+          expect(entry?.restartRecoveryOperatorSource).toEqual(savedSource);
+          expect(entry?.abortedLastRun).toBe(true);
         } else if (scenario.includes("after admission")) {
           expect(result).toEqual({ started: 0, settled: 0, failed: 1, skipped: 0 });
           expect(startTurn).toHaveBeenCalledOnce();
         } else {
-          expect(result).toEqual({ started: 0, settled: 1, failed: 0, skipped: 0 });
+          expect(result, warnings.join("\n")).toEqual({
+            started: 0,
+            settled: 1,
+            failed: 0,
+            skipped: 0,
+          });
           expect(startTurn).toHaveBeenCalledOnce();
         }
         const jobs = (await loadCronStore(cronStorePath)).jobs;
