@@ -43,6 +43,7 @@ import {
   resolveCodexThreadAgentDir,
   type CodexThreadRequestContext,
 } from "./thread-lifecycle-preflight.js";
+import { canRetainCodexProjectionBackgroundWork } from "./thread-lifecycle-projection.js";
 import type {
   CodexAppServerThreadLifecycleBinding,
   CodexStartOrResumeThreadParams,
@@ -555,6 +556,14 @@ export async function startOrResumeThread(
           ) {
             retainBackgroundPredecessor = false;
           }
+        }
+        if (retainBackgroundPredecessor) {
+          retainBackgroundPredecessor = await canRetainCodexProjectionBackgroundWork(
+            params,
+            binding,
+            await prepareRequestContext(),
+            prebuiltPluginThreadConfig,
+          );
         }
         rotateStaleBinding(binding, "context-engine binding", {
           engineId: contextEngineBinding?.engineId,
