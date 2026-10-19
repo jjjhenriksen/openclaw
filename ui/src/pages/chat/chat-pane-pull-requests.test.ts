@@ -365,7 +365,7 @@ it("uses the conversation repository for later bare PR references and clears it 
   pane.refreshSessionPullRequests();
   await projectsForGateway(context.gateway).refresh();
   state.chatMessages = [
-    { role: "assistant", content: "[Interface PR](https://github.com/acme/research/pull/126)" },
+    { role: "assistant", content: "[Interface PR](https://GITHUB.COM/acme/research/pull/126)" },
     { role: "assistant", content: "The preview work is still uncommitted, and PR #126 is open." },
   ];
   pane.render();

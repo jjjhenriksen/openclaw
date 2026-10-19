@@ -21,7 +21,7 @@ function assistantRepositories(message: object): readonly MarkdownGitHubReposito
   }
   const repositories: MarkdownGitHubRepository[] = [];
   const text = extractTextCached(message) ?? "";
-  if (text.length <= MARKDOWN_PARSE_LIMIT && text.includes("github.com/")) {
+  if (text.length <= MARKDOWN_PARSE_LIMIT && /github\.com\//i.test(text)) {
     let quoteDepth = 0;
     for (const block of parser.parse(text, {})) {
       if (block.type === "blockquote_open") {
