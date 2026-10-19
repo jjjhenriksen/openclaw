@@ -11,6 +11,7 @@ import {
 import { createDeferred } from "../../../../test/helpers/promise.ts";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ApplicationContext } from "../../app/context.ts";
+import { toSanitizedMarkdownHtml } from "../../components/markdown.ts";
 import { projectsForGateway } from "../../lib/projects.ts";
 import { projectOwner } from "../../lib/reactive/projection.ts";
 import {
@@ -351,6 +352,51 @@ it.each(["ready", "rate-limited"] as const)(
     expect(pane.chatProps?.pullRequestsStatus).toBe("ready");
   },
 );
+
+it("uses the conversation repository for later bare PR references and clears it on session change", async () => {
+  const { pane, context, state, emitGatewayEvent } = createPublicationPane();
+  pane.refreshSessionPullRequests();
+  await Promise.resolve();
+  emitSnapshot(emitGatewayEvent, state.sessionKey, {
+    repository: { owner: "openclaw", repo: "openclaw" },
+    pullRequests: [],
+    status: "ready",
+  });
+  pane.refreshSessionPullRequests();
+  await projectsForGateway(context.gateway).refresh();
+  state.chatMessages = [
+    { role: "assistant", content: "[Interface PR](https://github.com/acme/research/pull/126)" },
+    { role: "assistant", content: "The preview work is still uncommitted, and PR #126 is open." },
+  ];
+  pane.render();
+  expect(pane.chatProps?.githubRepo).toEqual({ owner: "acme", repo: "research" });
+  const container = document.createElement("div");
+  container.innerHTML = toSanitizedMarkdownHtml("PR #126", pane.chatProps ?? {});
+  expect(container.querySelector("a")?.href).toBe("https://github.com/acme/research/pull/126");
+  container.innerHTML = toSanitizedMarkdownHtml("OpenClaw PR #126", pane.chatProps ?? {});
+  expect(container.querySelector("a")?.href).toBe("https://github.com/openclaw/openclaw/pull/126");
+  // Repository context also covers references whose explicit link is on another history page.
+  state.chatMessages = [
+    {
+      role: "assistant",
+      content: "[New PR](https://github.com/acme/research/pull/127). PR #126 is untouched.",
+    },
+  ];
+  pane.render();
+  expect(pane.chatProps?.githubRepo).toEqual({ owner: "acme", repo: "research" });
+  state.chatMessages = [
+    ...state.chatMessages,
+    { role: "assistant", content: "[Other PR](https://github.com/other/project/pull/126)" },
+  ];
+  pane.render();
+  container.innerHTML = toSanitizedMarkdownHtml("PR #126", pane.chatProps ?? {});
+  expect(container.querySelector("a")).toBeNull();
+  state.sessionKey = "agent:main:another-checkout";
+  state.chatMessages = [{ role: "assistant", content: "PR #126" }];
+  pane.refreshSessionPullRequests();
+  pane.render();
+  expect(pane.chatProps?.githubRepo).toBeNull();
+});
 
 it.each(["global", "per-sender"] as const)(
   "preserves the selected raw-global owner through publication RPCs in %s scope",

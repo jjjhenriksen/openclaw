@@ -67,6 +67,8 @@ Reloading a previously visited chat restores the last settled sidebar while the 
 
 A short transcript loads at most one older page automatically when you open or reload a chat. It stops once the visible area is filled, without filling the backscroll buffer. Scroll up or choose **Show earlier** to continue loading older messages, even if the transcript still fits on screen.
 
+Bare PR and issue references use the repository identified by explicit GitHub item links in the loaded assistant conversation, when those links agree on one repository. Otherwise, the workspace checkout is the fallback when there are no such links; mixed-repository conversations leave bare references unlinked. Explicit repository names and matching links in the same paragraph still resolve individual references. Quoted examples, code blocks, reasoning, and tool output do not set the conversation repository. Loading older history can supply or disambiguate this context.
+
 The cached transcript also preserves its conversation title when the conversation is outside the saved sidebar page. Live session metadata replaces that display projection when it arrives.
 
 An authenticated same-origin reload includes shared display settings and your profile’s appearance and sidebar preferences in the document. Chat uses this display projection while connecting, without loading the full editable configuration. Preference changes from other tabs refresh through the Gateway’s existing notifications; settings pages and configuration writes still load the full snapshot.
