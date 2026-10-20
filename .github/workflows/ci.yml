@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          time swift build --package-path apps/macos --build-system native --disable-index-store -Xswiftc -gline-tables-only --product OpenClaw 2>&1 | tee .artifacts/menu/app-build.log
+          time swift build --package-path apps/macos --build-system native --disable-index-store -Xswiftc -gline-tables-only --product OpenClaw -Xlinker -rpath -Xlinker @executable_path/../Frameworks 2>&1 | tee .artifacts/menu/app-build.log
       - name: Compile independent driver and reuse native isolation resource owner
         shell: bash
         run: |
