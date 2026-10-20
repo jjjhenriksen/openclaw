@@ -1,0 +1,116 @@
+name: PR 177970 native validation
+on:
+  push:
+    branches: [validation/pr-177970-fbb30e5]
+    paths: [.github/workflows/pr-177970-native.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr-177970-native-fbb30e598cdad1e284058798bc6c6b5eaf80f2e5
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Check out exact upstream head without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: openclaw/openclaw
+          ref: fbb30e598cdad1e284058798bc6c6b5eaf80f2e5
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Record exact source and select stable Xcode
+        run: |
+          set -euo pipefail
+          mkdir -p validation-logs
+          test "$(git rev-parse HEAD)" = fbb30e598cdad1e284058798bc6c6b5eaf80f2e5
+          for app in /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app; do
+            if [[ -d "$app" ]]; then
+              export DEVELOPER_DIR="$app/Contents/Developer"
+              break
+            fi
+          done
+          if [[ -z "${DEVELOPER_DIR:-}" ]]; then
+            echo "Xcode 26.4.x is unavailable; refusing to substitute a different toolchain."
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          {
+            git rev-parse HEAD
+            sw_vers
+            xcodebuild -version
+            swift --version
+            df -h .
+          } | tee validation-logs/environment.log
+      - name: Setup supported Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.21.0
+      - name: Install pinned native asset dependencies
+        id: dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          pnpm install --frozen-lockfile --prefer-offline --optional \
+            --filter '@openclaw/mermaid-renderer...' \
+            --filter '@openclaw/gateway-protocol...' \
+            --config.ignore-scripts=false --config.engine-strict=false \
+            --config.enable-pre-post-scripts=true --config.side-effects-cache=true \
+            2>&1 | tee validation-logs/dependencies.log
+          node scripts/prepare-apple-mermaid.mjs 2>&1 | tee validation-logs/assets.log
+      - name: Build unmodified head and native tests
+        id: build
+        run: |
+          set -euo pipefail
+          swift build --package-path apps/macos --build-system native --build-tests \
+            --disable-keychain --disable-netrc --disable-index-store --jobs 3 \
+            2>&1 | tee validation-logs/build.log
+      - name: Run focused native lifecycle suites in disposable VM
+        if: steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          node scripts/test-macos-native.mts default \
+            --package-path apps/macos --build-system native --skip-build \
+            --filter 'SavedGatewayOpeningLifecycleTests|GatewayMenuStatusStoreTests|GatewayConnectionDashboardIdentityTests|DashboardBrowserSessionTests|GatewayConnectionControlTests' \
+            2>&1 | tee validation-logs/tests.log
+      - name: Run pinned Swift lint and format checks
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          scripts/install-swift-tools.sh .build/swift-tools 2>&1 | tee validation-logs/swift-tools.log
+          export PATH="$PWD/.build/swift-tools:$PATH"
+          lint_exit=0
+          format_exit=0
+          scripts/lint-swift.sh macos > validation-logs/lint.log 2>&1 || lint_exit=$?
+          scripts/format-swift.sh macos > validation-logs/format.log 2>&1 || format_exit=$?
+          cat validation-logs/lint.log validation-logs/format.log
+          echo "lint_exit=$lint_exit format_exit=$format_exit"
+          test "$lint_exit" -eq 0 && test "$format_exit" -eq 0
+      - name: Collect compiler diagnostics without environment credentials
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          logs = pathlib.Path('validation-logs')
+          logs.mkdir(exist_ok=True)
+          for p in pathlib.Path('apps/macos/.build/plugins/cache').glob('*-state.json'):
+              data = json.loads(p.read_text())
+              clean = {k: data[k] for k in ('commandLine', 'inputHash', 'output', 'result') if k in data}
+              (logs / p.name).write_text(json.dumps(clean, indent=2))
+          PY
+          git diff --check
+          git status --short > validation-logs/source-status.log
+      - name: Upload synthetic validation evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: pr-177970-fbb30e5-native-evidence
+          path: validation-logs/
+          retention-days: 3
+          if-no-files-found: error
