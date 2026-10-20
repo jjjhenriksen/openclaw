@@ -1,11 +1,15 @@
 name: Focused PR 178541 zoom verification
 on:
   workflow_dispatch:
+    inputs:
+      baseline_only:
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   native:
-    if: github.repository == 'jjjhenriksen/openclaw'
+    if: github.repository == 'jjjhenriksen/openclaw' && !inputs.baseline_only
     runs-on: macos-26
     timeout-minutes: 75
     defaults:
@@ -77,7 +81,7 @@ jobs:
             ${{ runner.temp }}/openclaw-menu-default-*/
           if-no-files-found: warn
   browser:
-    if: github.repository == 'jjjhenriksen/openclaw'
+    if: github.repository == 'jjjhenriksen/openclaw' && !inputs.baseline_only
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -140,4 +144,69 @@ jobs:
             .artifacts/zoom-verification/
             ui/.artifacts/control-ui-e2e/
             .artifacts/control-ui-e2e/
+          if-no-files-found: warn
+  native-baseline:
+    if: github.repository == 'jjjhenriksen/openclaw' && inputs.baseline_only
+    runs-on: macos-26
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: openclaw/openclaw
+          ref: e12719836f8e1f8b835496928d95ad847e453333
+          persist-credentials: false
+      - name: Record exact source and validate hosted toolchain
+        run: |
+          mkdir -p .artifacts/zoom-verification
+          {
+            echo "workflow_sha=${{ github.workflow_sha }}"
+            echo "tested_source_sha=$(git rev-parse HEAD)"
+            test "$(git rev-parse HEAD)" = e12719836f8e1f8b835496928d95ad847e453333
+            git fetch --depth=1 https://github.com/openclaw/openclaw.git 9d3ce54df1f00a41e30dae6931ddd57a4c3e1485
+            git show 9d3ce54df1f00a41e30dae6931ddd57a4c3e1485:apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift > apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+            echo 'overlay=candidate ContentZoomShortcutTests.swift only; product source unchanged'
+            shasum -a 256 apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+            git diff --stat
+            sw_vers
+            uname -m
+            export DEVELOPER_DIR=/Applications/Xcode_26.4.1.app/Contents/Developer
+            test -d "$DEVELOPER_DIR"
+            echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+            xcodebuild -version
+            swift --version
+            source scripts/lib/swift-toolchain.sh
+            require_swift_toolchain
+          } 2>&1 | tee .artifacts/zoom-verification/provenance.log
+      - uses: ./.github/actions/setup-node-env
+        with:
+          node-version: 24.x
+          install-bun: 'false'
+          install-deps: 'false'
+      - name: Upstream native dependency preparation
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile --prefer-offline --optional --filter '@openclaw/mermaid-renderer...' --filter '@openclaw/gateway-protocol...' --filter 'openclaw...' --config.ignore-scripts=false --config.engine-strict=false --config.enable-pre-post-scripts=true --config.side-effects-cache=true 2>&1 | tee .artifacts/zoom-verification/dependencies.log
+          node scripts/prepare-apple-mermaid.mjs 2>&1 | tee .artifacts/zoom-verification/native-assets.log
+      - name: Compile baseline with exact candidate test-only overlay
+        id: build
+        run: |
+          set -o pipefail
+          time swift build --package-path apps/macos --build-system native --enable-code-coverage --disable-index-store -Xswiftc -gline-tables-only --build-tests 2>&1 | tee .artifacts/zoom-verification/build.log
+      - name: Content zoom regression through native isolation owner
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        id: zoom
+        run: |
+          set -o pipefail
+          time node scripts/test-macos-native.mts default --package-path apps/macos --build-system native --enable-code-coverage --skip-build --filter ContentZoomShortcutTests 2>&1 | tee .artifacts/zoom-verification/content-zoom.log
+      - name: Upload native logs and synthetic boundary captures even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zoom-native-baseline
+          path: |
+            .artifacts/zoom-verification/
+            ${{ runner.temp }}/openclaw-menu-default-*/
           if-no-files-found: warn
