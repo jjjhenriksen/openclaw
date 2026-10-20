@@ -2,6 +2,12 @@ name: Focused PR 178541 zoom verification
 on:
   workflow_dispatch:
     inputs:
+      native_only:
+        type: boolean
+        default: false
+      test_helper_overlay:
+        type: boolean
+        default: false
       baseline_only:
         type: boolean
         default: false
@@ -38,6 +44,24 @@ jobs:
             source scripts/lib/swift-toolchain.sh
             require_swift_toolchain
           } 2>&1 | tee .artifacts/zoom-verification/provenance.log
+      - name: Explicit diagnostic test-only snapshot helper overlay
+        if: inputs.test_helper_overlay
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          p = Path('apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift')
+          s = p.read_text()
+          old = '        let bitmap = try #require(NSBitmapImageRep(data: #require(image.tiffRepresentation)))'
+          new = '        let tiff = try #require(image.tiffRepresentation)\n        let bitmap = try #require(NSBitmapImageRep(data: tiff))'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PYTHON
+          {
+            echo 'diagnostic_overlay=split nested require in screenshot helper only; assertions unchanged'
+            shasum -a 256 apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+            git diff -- apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+          } | tee .artifacts/zoom-verification/helper-overlay.log
+          cp apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift .artifacts/zoom-verification/ContentZoomShortcutTests.swift
       - uses: ./.github/actions/setup-node-env
         with:
           node-version: 24.x
@@ -81,7 +105,7 @@ jobs:
             ${{ runner.temp }}/openclaw-menu-default-*/
           if-no-files-found: warn
   browser:
-    if: github.repository == 'jjjhenriksen/openclaw' && !inputs.baseline_only
+    if: github.repository == 'jjjhenriksen/openclaw' && !inputs.baseline_only && !inputs.native_only
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
@@ -180,6 +204,24 @@ jobs:
             source scripts/lib/swift-toolchain.sh
             require_swift_toolchain
           } 2>&1 | tee .artifacts/zoom-verification/provenance.log
+      - name: Explicit diagnostic test-only snapshot helper overlay
+        if: inputs.test_helper_overlay
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          p = Path('apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift')
+          s = p.read_text()
+          old = '        let bitmap = try #require(NSBitmapImageRep(data: #require(image.tiffRepresentation)))'
+          new = '        let tiff = try #require(image.tiffRepresentation)\n        let bitmap = try #require(NSBitmapImageRep(data: tiff))'
+          assert s.count(old) == 1
+          p.write_text(s.replace(old, new))
+          PYTHON
+          {
+            echo 'diagnostic_overlay=split nested require in screenshot helper only; assertions unchanged'
+            shasum -a 256 apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+            git diff -- apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift
+          } | tee .artifacts/zoom-verification/helper-overlay.log
+          cp apps/macos/Tests/OpenClawIPCTests/ContentZoomShortcutTests.swift .artifacts/zoom-verification/ContentZoomShortcutTests.swift
       - uses: ./.github/actions/setup-node-env
         with:
           node-version: 24.x
