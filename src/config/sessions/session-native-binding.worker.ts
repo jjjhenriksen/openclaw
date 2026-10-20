@@ -211,12 +211,10 @@ export function runSessionNativeBindingTransaction(
     };
     const anchor = sqlPublicationAnchor(shared.db);
     stageSqliteTransactionState(anchor, {
-      stage() {},
       commit: () => {
         bindings = nextBindings;
         pluginState = nextPluginState;
       },
-      rollback() {},
     });
     deferSqliteWorkerCommitReceipt(anchor, receipt(agent, nextBindings, nextPluginState));
   };
@@ -282,13 +280,11 @@ export function runSessionNativeBindingTransaction(
   try {
     return withSqliteSessionDeletionWorkerParticipant(commitParticipant, () =>
       context.writeTransaction(operationLabel, owner, (current) => {
-        stageSqliteTransactionState(current.db, {
-          stage() {},
+        stageSqliteTransactionState(sqlPublicationAnchor(current.db), {
           commit: () => {
             agent = "committed";
             agentCommitted = true;
           },
-          rollback() {},
         });
         return mutate(current, (transferred) => ({
           ...receipt("committed"),
@@ -325,8 +321,8 @@ export function runSessionNativeBindingTransaction(
       }
       const plan = input.participants[index]!.binding!;
       try {
+        admitShared(index, "restore", "transaction");
         const restored = writeShared("register", (shared) => {
-          admitShared(index, "restore", "transaction");
           const applied = restorePluginStateNativeBinding(shared, plan, value);
           const next = [...bindings];
           if (applied) {
@@ -351,6 +347,7 @@ export function runSessionNativeBindingTransaction(
       );
     }
     try {
+      context.admit("transaction");
       writeShared("register", () => ({ value: undefined, bindings }));
     } catch (failure) {
       failures.push(failure);
