@@ -1,0 +1,73 @@
+name: PR 179988 Control-click evidence
+on:
+  push:
+    branches: [evidence/pr179988-control-click]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      OPENCLAW_TEST_RUNTIME: node
+      OPENCLAW_FORMAT_TOOL: oxfmt
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          repository: openclaw/openclaw
+          ref: 2a0812ee450b8bb4868dd12fb1bdc419fc6707a9
+          persist-credentials: false
+      - name: Verify source identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = 2a0812ee450b8bb4868dd12fb1bdc419fc6707a9
+          git log -1 --format=fuller
+          git status --short
+      - name: Setup Node and frozen dependencies
+        id: setup
+        uses: ./.github/actions/setup-node-env
+        with:
+          node-version: "24.21.0"
+          install-bun: "false"
+          cache-mode: off
+      - name: Focused sidebar and input tests
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          pnpm --dir ui test src/components/app-sidebar.interactions.test.ts src/components/app-sidebar-session-row-render.test.tsx src/components/app-sidebar-catalog-menu.test.tsx src/lib/keyboard-shortcuts.test.ts src/lib/navigation-click.test.ts --maxWorkers=1 --reporter=verbose 2>&1 | tee evidence/tests.log
+      - name: UI typecheck
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          pnpm tsgo:ui 2>&1 | tee evidence/typecheck.log
+      - name: Changed-file lint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          node scripts/run-oxlint.mjs ui/src/components/app-sidebar-session-catalog-row.tsx ui/src/components/app-sidebar-session-row-render.tsx ui/src/lib/keyboard-shortcuts.ts ui/src/test-helpers/app-sidebar-cases/interactions.ts 2>&1 | tee evidence/lint.log
+      - name: Changed-file formatting
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p evidence
+          pnpm exec oxfmt --check ui/src/components/app-sidebar-session-catalog-row.tsx ui/src/components/app-sidebar-session-row-render.tsx ui/src/lib/keyboard-shortcuts.ts ui/src/test-helpers/app-sidebar-cases/interactions.ts 2>&1 | tee evidence/format.log
+      - name: Upload evidence logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr179988-${{ matrix.os }}
+          path: evidence/
+          retention-days: 14
