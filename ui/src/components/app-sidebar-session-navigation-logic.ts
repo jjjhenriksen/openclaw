@@ -295,6 +295,7 @@ export function buildSidebarSessionNavigationState(input: {
             row.archived === true ? SIDEBAR_SESSION_NO_ATTENTION : input.resolveAttention(row),
           agentStatusNote,
           observerDigest: row.observerDigest,
+          parentSessionKey: row.parentSessionKey,
           spawnedBy: row.spawnedBy,
           forkSource: row.forkSource,
           status: row.status,
@@ -496,27 +497,6 @@ export function collectSidebarSessionRowsByKey(input: {
   return new Map(
     [...Object.values(input.childRowsByParent).flat(), ...input.rows].map((row) => [row.key, row]),
   );
-}
-
-/** Keep pinned dashboard children in the global pinned shelf instead of their
- * lineage tree. They are user-facing destinations, unlike ordinary children.
- */
-export function collectPromotedPinnedDashboardChildRows(input: {
-  rows: readonly GatewaySessionRow[];
-  scopedRootKeys: ReadonlySet<string>;
-  visibilityOptions: Parameters<typeof filterVisibleSessionRows>[1];
-}): GatewaySessionRow[] {
-  return input.rows.filter((row) => {
-    const parentKey = resolveUiSessionNavigationParentKey(row);
-    return (
-      row.pinned === true &&
-      row.boardFace === "dashboard" &&
-      parentKey != null &&
-      !input.scopedRootKeys.has(row.key) &&
-      !row.archived &&
-      sessionMatchesVisibleSessionScope(row, input.visibilityOptions)
-    );
-  });
 }
 
 export function collectCategorizedChildRootRows(input: {

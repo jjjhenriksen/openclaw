@@ -176,7 +176,7 @@ test(
         const listed = await gateway.client.request<{
           sessions: Array<{ key: string; pinned?: boolean }>;
         }>("sessions.list", {});
-        record("global-shelf-projection", {
+        record("shared-pin-metadata-projection", {
           pinnedKeys: listed.sessions.filter((s) => s.pinned).map((s) => s.key),
         });
         expect(listed.sessions.filter((s) => s.pinned).map((s) => s.key)).toEqual([
