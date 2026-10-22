@@ -20,7 +20,6 @@ import { scopedAgentParamsForSession } from "../../lib/sessions/index.ts";
 import { resolveUiConfiguredMainKey } from "../../lib/sessions/session-key.ts";
 import { navigateToModelProvider } from "../model-providers/navigation.ts";
 import { isChatBubbleMode } from "./chat-bubble-mode.ts";
-import { chatGitHubContext } from "./chat-github-repository.ts";
 import { chatGoalRecovery, mutateChatGoal, submitChatGoalDraft } from "./chat-goals.ts";
 import { isInitialChatHistoryUnavailable } from "./chat-history-state.ts";
 import { resolveChatModelSetup } from "./chat-model-setup.ts";
@@ -563,7 +562,6 @@ export class ChatPaneRuntime extends ChatPaneLayoutRender {
       pullRequestsStatus: this.sessionPullRequestsStatus,
       onDismissPullRequest: this.dismissSessionPullRequest,
       onDismissPullRequestsBranch: this.dismissSessionPullRequestsBranch,
-      ...chatGitHubContext(this.context.gateway, messages, this.githubRepo),
 
       onOpenSessionDiff: sessionWorkspace.onOpenDiff,
       githubPublication: this.publication.binding?.view(),

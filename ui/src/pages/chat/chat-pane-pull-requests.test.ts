@@ -8,11 +8,8 @@ import {
   type ControlUiSessionPullRequest,
   type ControlUiSessionPullRequests,
 } from "../../../../src/gateway/control-ui-contract.js";
-import { createDeferred } from "../../../../test/helpers/promise.ts";
 import type { GatewayBrowserClient } from "../../api/gateway.ts";
 import type { ApplicationContext } from "../../app/context.ts";
-import { toSanitizedMarkdownHtml } from "../../components/markdown.ts";
-import { projectsForGateway } from "../../lib/projects.ts";
 import { projectOwner } from "../../lib/reactive/projection.ts";
 import {
   SESSION_PULL_REQUESTS_SUBSCRIBE_METHOD,
@@ -301,100 +298,11 @@ it.each(["unavailable", "rate-limited"] as const)(
 
     const replacement = { owner: "other", repo: "checkout" };
     push({ ...failure, repository: replacement });
-    expect(pane.githubRepo).toEqual(replacement);
     expect(pane.sessionPullRequests).toEqual([]);
     expect(pane.sessionPullRequestsBranch).toBeUndefined();
     expect(setPullRequestSummary).toHaveBeenLastCalledWith(key, undefined, epoch);
   },
 );
-
-it.each(["ready", "rate-limited"] as const)(
-  "renders repository context only from a settled catalog (%s)",
-  async (status) => {
-    const { pane, request, context, state, emitGatewayEvent } = createPublicationPane();
-    pane.refreshSessionPullRequests();
-    await Promise.resolve();
-    emitSnapshot(emitGatewayEvent, state.sessionKey, {
-      repository,
-      pullRequests: [],
-      rateLimited: status === "rate-limited",
-      status,
-    });
-    pane.refreshSessionPullRequests();
-    const catalog = projectsForGateway(context.gateway);
-    if (status === "ready") {
-      const pending = createDeferred<{ projects: [] }>();
-      request.mockReturnValueOnce(pending.promise);
-      const read = catalog.refresh();
-      pane.render();
-      expect(pane.chatProps?.githubRepo).toBeNull();
-      pending.reject(new Error("Project catalog unavailable"));
-      await read;
-      pane.render();
-      expect(pane.chatProps?.githubRepo).toBeNull();
-      request.mockResolvedValueOnce({
-        projects: [{ id: "clawsweeper", displayName: "ClawSweeper", source: "cloned" }],
-      });
-    }
-    await catalog.refresh();
-    pane.render();
-    expect(pane.chatProps?.githubRepo).toEqual(repository);
-    expect(pane.chatProps?.pullRequestsStatus).toBe(status);
-    if (status === "ready") {
-      expect(pane.chatProps?.githubRepositories).toEqual([{ aliases: ["ClawSweeper"] }]);
-    }
-    state.sessionKey = "agent:main:another-checkout";
-    pane.refreshSessionPullRequests();
-    pane.render();
-    expect(pane.chatProps?.githubRepo).toBeNull();
-    expect(pane.chatProps?.pullRequestsStatus).toBe("ready");
-  },
-);
-
-it("uses the conversation repository for later bare PR references and clears it on session change", async () => {
-  const { pane, context, state, emitGatewayEvent } = createPublicationPane();
-  pane.refreshSessionPullRequests();
-  await Promise.resolve();
-  emitSnapshot(emitGatewayEvent, state.sessionKey, {
-    repository: { owner: "openclaw", repo: "openclaw" },
-    pullRequests: [],
-    status: "ready",
-  });
-  pane.refreshSessionPullRequests();
-  await projectsForGateway(context.gateway).refresh();
-  state.chatMessages = [
-    { role: "assistant", content: "[Interface PR](https://GITHUB.COM/acme/research/pull/126)" },
-    { role: "assistant", content: "The preview work is still uncommitted, and PR #126 is open." },
-  ];
-  pane.render();
-  expect(pane.chatProps?.githubRepo).toEqual({ owner: "acme", repo: "research" });
-  const container = document.createElement("div");
-  container.innerHTML = toSanitizedMarkdownHtml("PR #126", pane.chatProps ?? {});
-  expect(container.querySelector("a")?.href).toBe("https://github.com/acme/research/pull/126");
-  container.innerHTML = toSanitizedMarkdownHtml("OpenClaw PR #126", pane.chatProps ?? {});
-  expect(container.querySelector("a")?.href).toBe("https://github.com/openclaw/openclaw/pull/126");
-  // Repository context also covers references whose explicit link is on another history page.
-  state.chatMessages = [
-    {
-      role: "assistant",
-      content: "[New PR](https://github.com/acme/research/pull/127). PR #126 is untouched.",
-    },
-  ];
-  pane.render();
-  expect(pane.chatProps?.githubRepo).toEqual({ owner: "acme", repo: "research" });
-  state.chatMessages = [
-    ...state.chatMessages,
-    { role: "assistant", content: "[Other PR](https://github.com/other/project/pull/126)" },
-  ];
-  pane.render();
-  container.innerHTML = toSanitizedMarkdownHtml("PR #126", pane.chatProps ?? {});
-  expect(container.querySelector("a")).toBeNull();
-  state.sessionKey = "agent:main:another-checkout";
-  state.chatMessages = [{ role: "assistant", content: "PR #126" }];
-  pane.refreshSessionPullRequests();
-  pane.render();
-  expect(pane.chatProps?.githubRepo).toBeNull();
-});
 
 it.each(["global", "per-sender"] as const)(
   "preserves the selected raw-global owner through publication RPCs in %s scope",
@@ -536,7 +444,6 @@ it.each(["session switch", "disconnect", "branch switch"] as const)(
     });
     await Promise.resolve();
     expect(pane.sessionPullRequests).toHaveLength(1);
-    expect(pane.githubRepo).toEqual(repository);
     if (change === "disconnect") {
       pane.applyGatewaySnapshot({ ...pane.context.gateway.snapshot, phase: "reconnecting" });
     } else {
@@ -554,7 +461,6 @@ it.each(["session switch", "disconnect", "branch switch"] as const)(
     }
     expect(pane.sessionPullRequests).toEqual([]);
     expect(pane.sessionPullRequestsBranch).toBeUndefined();
-    expect(pane.githubRepo).toBeNull();
     if (change === "branch switch") {
       expect(setPullRequestSummary).toHaveBeenLastCalledWith(
         "agent:main:current",

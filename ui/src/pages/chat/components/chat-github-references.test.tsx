@@ -7,11 +7,8 @@ import { StreamGroupParts } from "./chat-message-stream-view.tsx";
 import { SidebarPanel } from "./chat-sidebar-content.tsx";
 
 const text =
-  "Original ClawSweeper PR **#1558 merged**; Follow-up ClawSweeper PR **#1576 opened**; OpenClaw PR #1576.";
-const context: MarkdownRenderOptions = {
-  githubRepo: { owner: "openclaw", repo: "openclaw" },
-  githubRepositories: [{ owner: "openclaw", repo: "clawsweeper", aliases: ["ClawSweeper"] }],
-};
+  "PR openclaw/clawsweeper#1558; PR openclaw/clawsweeper#1576; PR openclaw/openclaw#1576; PR #1576.";
+const context: MarkdownRenderOptions = {};
 
 describe("GitHub reference presentation parity", () => {
   it.each(["persisted", "streaming", "sidebar"] as const)(
