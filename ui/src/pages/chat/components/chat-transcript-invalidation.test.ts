@@ -17,6 +17,7 @@ import { flush, waitForSolid } from "../../../test-helpers/solid-settle.ts";
 import {
   activePlacementSession,
   createInitializationContext,
+  createGatewayBrowserClientFixture,
   createSessionCapabilityFixture,
   createTestChatPane,
 } from "../chat-pane.test-support.ts";
@@ -331,7 +332,7 @@ describe("chat transcript invalidation", () => {
   });
 
   it("keeps explicit destinations stable as history, catalog rows, and sessions change", () => {
-    const { pane } = createTestChatPane({});
+    const { pane } = createTestChatPane({ client: createGatewayBrowserClientFixture() });
     const original = {
       role: "assistant",
       content: "PR acme/research#126 and https://github.com/other/project/issues/126. PR #126.",

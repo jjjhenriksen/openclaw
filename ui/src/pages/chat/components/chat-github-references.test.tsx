@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { MarkdownRenderOptions } from "../../../components/markdown-render-options.ts";
 import { mountSolid } from "../../../test-helpers/mount-solid.ts";
 import { GroupedMessage } from "./chat-message-bubble-view.tsx";
 import { prepareChatMessageRender } from "./chat-message-markdown-view.tsx";
@@ -8,7 +7,6 @@ import { SidebarPanel } from "./chat-sidebar-content.tsx";
 
 const text =
   "PR openclaw/clawsweeper#1558; PR openclaw/clawsweeper#1576; PR openclaw/openclaw#1576; PR #1576.";
-const context: MarkdownRenderOptions = {};
 
 describe("GitHub reference presentation parity", () => {
   it.each(["persisted", "streaming", "sidebar"] as const)(
@@ -21,7 +19,6 @@ describe("GitHub reference presentation parity", () => {
           () => (
             <SidebarPanel
               {...{
-                ...context,
                 content: { kind: "markdown", content: text },
                 showingRawText: false,
                 error: null,
@@ -41,7 +38,7 @@ describe("GitHub reference presentation parity", () => {
           () => (
             <StreamGroupParts
               parts={[{ kind: "stream", key: "live", text, isStreaming: true, startedAt: 1 }]}
-              options={context}
+              options={{}}
               presentation="standalone"
             />
           ),
@@ -53,7 +50,7 @@ describe("GitHub reference presentation parity", () => {
             <GroupedMessage
               preparation={prepareChatMessageRender(message)}
               messageKey="reply"
-              options={{ ...context, isStreaming: false, showReasoning: false }}
+              options={{ isStreaming: false, showReasoning: false }}
             />
           ),
           { container },
