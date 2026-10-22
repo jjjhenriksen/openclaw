@@ -1,7 +1,6 @@
 import { formatDocsLink } from "../../packages/terminal-core/src/links.js";
 import { isRich, theme } from "../../packages/terminal-core/src/theme.js";
 import { formatCliCommand } from "../cli/command-format.js";
-// Implements docs link/search output for `openclaw docs`.
 import { readResponseWithLimit } from "../infra/http-body.js";
 import { type RuntimeEnv, writeRuntimeJson } from "../runtime.js";
 
@@ -23,47 +22,6 @@ function escapeMarkdown(text: string): string {
   return text.replace(/[()[\]]/g, "\\$&");
 }
 
-function buildMarkdown(query: string, results: DocResult[]): string {
-  const lines: string[] = [`# Docs search: ${escapeMarkdown(query)}`, ""];
-  if (results.length === 0) {
-    lines.push("_No results._");
-    return lines.join("\n");
-  }
-  for (const item of results) {
-    const title = escapeMarkdown(item.title);
-    const snippet = item.snippet ? escapeMarkdown(item.snippet) : "";
-    const suffix = snippet ? ` - ${snippet}` : "";
-    lines.push(`- [${title}](${item.link})${suffix}`);
-  }
-  return lines.join("\n");
-}
-
-function formatLinkLabel(link: string): string {
-  return link.replace(/^https?:\/\//i, "");
-}
-
-function renderRichResults(query: string, results: DocResult[], runtime: RuntimeEnv) {
-  runtime.log(`${theme.heading("Docs search:")} ${theme.info(query)}`);
-  if (results.length === 0) {
-    runtime.log(theme.muted("No results."));
-    return;
-  }
-  for (const item of results) {
-    const linkLabel = formatLinkLabel(item.link);
-    const link = formatDocsLink(item.link, linkLabel);
-    runtime.log(
-      `${theme.muted("-")} ${theme.command(item.title)} ${theme.muted("(")}${link}${theme.muted(")")}`,
-    );
-    if (item.snippet) {
-      runtime.log(`  ${theme.muted(item.snippet)}`);
-    }
-  }
-}
-
-async function renderMarkdown(markdown: string, runtime: RuntimeEnv) {
-  runtime.log(markdown.trimEnd());
-}
-
 async function fetchDocsSearch(query: string): Promise<DocResult[]> {
   const url = new URL(SEARCH_API);
   url.searchParams.set("q", query);
@@ -75,7 +33,9 @@ async function fetchDocsSearch(query: string): Promise<DocResult[]> {
       signal: controller.signal,
     });
     if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
+      // A retained capture clone can keep cancellation pending until peer EOF.
+      // Request cancellation, then let this request owner abort transport in finally.
+      void response.body?.cancel().catch(() => undefined);
       throw new Error(`HTTP ${response.status}`);
     }
     const bytes = await readResponseWithLimit(response, DOCS_SEARCH_RESPONSE_MAX_BYTES, {
@@ -92,12 +52,13 @@ async function fetchDocsSearch(query: string): Promise<DocResult[]> {
     return parseDocsSearchResults(payload.results);
   } finally {
     clearTimeout(timeout);
+    controller.abort();
   }
 }
 
 function parseDocsSearchResults(raw: unknown): DocResult[] {
   if (!Array.isArray(raw)) {
-    return [];
+    throw new Error("Docs search response is malformed: expected results array");
   }
   const results: DocResult[] = [];
   for (const item of raw) {
@@ -118,7 +79,6 @@ function parseDocsSearchResults(raw: unknown): DocResult[] {
   return results;
 }
 
-/** Search hosted docs, or print the docs homepage when no query is provided. */
 export async function docsSearchCommand(
   queryParts: string[],
   runtime: RuntimeEnv,
@@ -162,9 +122,31 @@ export async function docsSearchCommand(
   }
 
   if (isRich()) {
-    renderRichResults(query, results, runtime);
+    runtime.log(`${theme.heading("Docs search:")} ${theme.info(query)}`);
+    if (results.length === 0) {
+      runtime.log(theme.muted("No results."));
+      return;
+    }
+    for (const item of results) {
+      const link = formatDocsLink(item.link, item.link.replace(/^https?:\/\//i, ""));
+      runtime.log(
+        `${theme.muted("-")} ${theme.command(item.title)} ${theme.muted("(")}${link}${theme.muted(")")}`,
+      );
+      if (item.snippet) {
+        runtime.log(`  ${theme.muted(item.snippet)}`);
+      }
+    }
     return;
   }
-  const markdown = buildMarkdown(query, results);
-  await renderMarkdown(markdown, runtime);
+  const lines: string[] = [`# Docs search: ${escapeMarkdown(query)}`, ""];
+  if (results.length === 0) {
+    lines.push("_No results._");
+  }
+  for (const item of results) {
+    const title = escapeMarkdown(item.title);
+    const snippet = item.snippet ? escapeMarkdown(item.snippet) : "";
+    const suffix = snippet ? ` - ${snippet}` : "";
+    lines.push(`- [${title}](${item.link})${suffix}`);
+  }
+  runtime.log(lines.join("\n").trimEnd());
 }
