@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { CONTROL_UI_BASE_PATH_ATTRIBUTE } from "../../../src/gateway/control-ui-bootstrap-contract.js";
 import {
   isOwnedControlUiServiceWorkerRegistration,
   isNativeEmbedHost,
@@ -106,6 +107,13 @@ describe("native web chrome capability", () => {
   });
 
   it("identifies the owned worker under an inferred custom base path", () => {
+    const originalLocation = window.location.href;
+    const originalHistoryState = window.history.state;
+    const basePathKey = "__OPENCLAW_CONTROL_UI_BASE_PATH__";
+    const originalBasePath = Object.getOwnPropertyDescriptor(window, basePathKey);
+    const originalBasePathAttribute = document.documentElement.getAttribute(
+      CONTROL_UI_BASE_PATH_ATTRIBUTE,
+    );
     const pageUrl = new URL("http://127.0.0.1:18789/apps/openclaw/chat");
     const registration = {
       scope: "http://127.0.0.1:18789/apps/openclaw/",
@@ -113,13 +121,26 @@ describe("native web chrome capability", () => {
       waiting: null,
       active: { scriptURL: "http://127.0.0.1:18789/apps/openclaw/sw.js?v=old-build" },
     } as unknown as ServiceWorkerRegistration;
-    const controlUiWorkerUrl = new URL(
-      inferControlUiPublicAssetPath("sw.js", { pathname: pageUrl.pathname }),
-      pageUrl.origin,
-    );
-    expect(
-      isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl),
-    ).toBe(true);
+    try {
+      window.history.replaceState(null, "", pageUrl.pathname);
+      Reflect.deleteProperty(window, basePathKey);
+      document.documentElement.removeAttribute(CONTROL_UI_BASE_PATH_ATTRIBUTE);
+      const controlUiWorkerUrl = new URL(inferControlUiPublicAssetPath("sw.js"), pageUrl.origin);
+      expect(
+        isOwnedControlUiServiceWorkerRegistration(registration, controlUiWorkerUrl, pageUrl),
+      ).toBe(true);
+    } finally {
+      window.history.replaceState(originalHistoryState, "", originalLocation);
+      if (originalBasePath) {
+        Object.defineProperty(window, basePathKey, originalBasePath);
+      }
+      if (originalBasePathAttribute !== null) {
+        document.documentElement.setAttribute(
+          CONTROL_UI_BASE_PATH_ATTRIBUTE,
+          originalBasePathAttribute,
+        );
+      }
+    }
   });
 
   it("reads native history state and defaults safely", () => {
