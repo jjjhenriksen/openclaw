@@ -10,6 +10,7 @@ export type NativeHistoryState = {
 type NativeEmbedHost = {
   platform: "ios" | "macos" | "android";
   formFactor: "phone" | "pad" | "desktop";
+  surface?: "conversation";
 };
 
 declare global {
@@ -78,10 +79,11 @@ export function nativeEmbedHost(): NativeEmbedHost | null {
   if (!isRecord(host)) {
     return null;
   }
-  const { platform, formFactor } = host;
+  const { platform, formFactor, surface } = host;
   return (platform === "ios" || platform === "macos" || platform === "android") &&
-    (formFactor === "phone" || formFactor === "pad" || formFactor === "desktop")
-    ? { platform, formFactor }
+    (formFactor === "phone" || formFactor === "pad" || formFactor === "desktop") &&
+    (surface === undefined || surface === "conversation")
+    ? { platform, formFactor, ...(surface ? { surface } : {}) }
     : null;
 }
 
