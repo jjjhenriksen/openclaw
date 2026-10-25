@@ -704,11 +704,11 @@ export function toStreamingMarkdownParts(
   const streamingTail = input.slice(boundary);
   const state = streamingMarkdownState(streamKey);
   const previous = state?.rendered;
-  const renderKey = markdownRenderKey(renderOptions);
+  const key = markdownRenderKey(renderOptions);
   // Containers and block-art classification can outlive a completed boundary.
   // The message parse guard also keeps applying to the complete prefix.
   const incremental =
-    previous?.options === renderKey &&
+    previous?.options === key &&
     stableMarkdown.startsWith(previous.markdown) &&
     (previous.markdown === stableMarkdown ||
       (previous.markdown.endsWith("\n") &&
@@ -719,36 +719,41 @@ export function toStreamingMarkdownParts(
         !previous.html.includes('class="markdown-block-art"') &&
         (renderOptions.mode === "document" || boundary <= MARKDOWN_PARSE_LIMIT)));
   let stableHtml = incremental ? previous.html : "";
+  // Only retained HTML spends admission; the replaceable tail borrows this checkpoint.
+  let stableEnv = { ...renderOptions, mathExpressions: incremental ? previous.mathExpressions : 0 };
   const stableAppend = stableMarkdown.slice(incremental ? previous.markdown.length : 0);
   if (stableAppend) {
-    const appendedHtml = renderSanitizedMarkdown(stableAppend, { ...renderOptions });
+    const appendedHtml = renderSanitizedMarkdown(stableAppend, stableEnv);
     // File-label collisions and standalone block art depend on the whole prefix.
-    stableHtml =
+    if (
       (stableHtml.length > 0 && isMarkdownBlockArtText(stableAppend)) ||
       (renderOptions.fileLinks &&
         stableHtml.includes('class="markdown-file-link"') &&
         appendedHtml.includes('class="markdown-file-link"'))
-        ? renderSanitizedMarkdown(stableMarkdown, { ...renderOptions })
-        : stableHtml + appendedHtml;
+    ) {
+      stableEnv = { ...renderOptions, mathExpressions: 0 };
+      stableHtml = renderSanitizedMarkdown(stableMarkdown, stableEnv);
+    } else {
+      stableHtml += appendedHtml;
+    }
   }
+  const mathExpressions = stableEnv.mathExpressions;
+  renderOptions.mathExpressions = mathExpressions;
   if (state) {
-    state.rendered = { options: renderKey, markdown: stableMarkdown, html: stableHtml };
+    state.rendered = { options: key, markdown: stableMarkdown, html: stableHtml, mathExpressions };
   }
   if (!streamingTail.trim()) {
     return [stableHtml, ""];
   }
   // The whole input was classified above; an isolated tail is not block art.
-  const tailHtml =
+  const tailInput =
     tailRepairStart === null
-      ? renderSanitizedMarkdown(
-          streamingTail,
-          { ...renderOptions, streamingOpenFence: true },
-          false,
-        )
-      : renderSanitizedMarkdown(
-          repairStreamingMarkdownTail(streamingTail, tailRepairStart - boundary),
-          renderOptions,
-          false,
-        );
+      ? streamingTail
+      : repairStreamingMarkdownTail(streamingTail, tailRepairStart - boundary);
+  const tailHtml = renderSanitizedMarkdown(
+    tailInput,
+    { ...renderOptions, streamingOpenFence: tailRepairStart === null },
+    false,
+  );
   return [stableHtml, tailHtml];
 }

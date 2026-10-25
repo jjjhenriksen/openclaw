@@ -1,4 +1,5 @@
 import type { HumanMention } from "@openclaw/gateway-protocol";
+import type { Env } from "markdown-it";
 import type {
   MarkdownGitHubRepository,
   MarkdownGitHubRepositoryAliases,
@@ -31,10 +32,18 @@ export type MarkdownGitHubContext = Pick<
   "githubRepo" | "githubRepositories"
 >;
 
-export type MarkdownRenderEnv = Required<MarkdownRenderOptions> & {
-  streamingOpenFence?: boolean;
-  humanMentionTokens?: readonly MarkdownHumanMentionToken[];
-};
+// The math plugin carries admission through MarkdownIt's shared render environment.
+declare module "markdown-it" {
+  interface Env {
+    mathExpressions?: number;
+  }
+}
+
+export type MarkdownRenderEnv = Required<MarkdownRenderOptions> &
+  Pick<Env, "mathExpressions"> & {
+    streamingOpenFence?: boolean;
+    humanMentionTokens?: readonly MarkdownHumanMentionToken[];
+  };
 
 export function normalizeMarkdownRenderOptions(
   options: MarkdownRenderOptions = {},

@@ -115,7 +115,7 @@ type StreamingMarkdownCacheEntry = {
 type StreamingMarkdownState = {
   input?: { source: string; normalized: string };
   split?: StreamingMarkdownCacheEntry;
-  rendered?: { options: string; markdown: string; html: string };
+  rendered?: { options: string; markdown: string; html: string; mathExpressions: number };
 };
 const streamingCache = new Map<string, StreamingMarkdownState>();
 

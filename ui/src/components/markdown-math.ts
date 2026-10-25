@@ -4,6 +4,7 @@ import {
   findMarkdownCodeSpans,
   isInsideCode,
 } from "../../../packages/markdown-core/src/reasoning-tag-parser.js";
+import type { MarkdownRenderEnv } from "./markdown-render-options.ts";
 
 const DISPLAY_DELIMITERS = [
   { open: "$$", close: "$$", displayMode: true },
@@ -18,16 +19,20 @@ const INLINE_DELIMITERS = [
 
 export const MAX_MATH_SCAN = 4096;
 const MAX_MATH_EXPRESSIONS = 200;
-let renderedMathExpressions = 0;
 const BARE_URL_RE = /(?:https?:\/\/|www\.)[^\s<]*/giu;
 
-function renderMath(source: string, displayMode: boolean): string {
+function renderMath(
+  source: string,
+  displayMode: boolean,
+  env: Pick<MarkdownRenderEnv, "mathExpressions"> = {},
+): string {
   const delimiter = displayMode ? "$$" : "$";
   const literal = escapeMathFallback(delimiter + source + delimiter);
+  const renderedMathExpressions = env.mathExpressions ?? 0;
   if (renderedMathExpressions >= MAX_MATH_EXPRESSIONS) {
     return literal;
   }
-  renderedMathExpressions += 1;
+  env.mathExpressions = renderedMathExpressions + 1;
   // HTML caches retain this leaf, not a load-state-dependent literal snapshot.
   // Every Markdown surface gets the same connected lifecycle without a host directive.
   return `<openclaw-markdown-math data-display="${displayMode}">${literal}</openclaw-markdown-math>`;
@@ -192,22 +197,19 @@ function parseInlineMath(state: StateInline, silent: boolean): boolean {
 }
 
 export function installMarkdownMath(markdownParser: MarkdownIt) {
-  markdownParser.core.ruler.before("normalize", "math_budget", () => {
-    renderedMathExpressions = 0;
-  });
   markdownParser.block.ruler.before("paragraph", "math_block", parseDisplayMath, {
     alt: ["paragraph"],
   });
   markdownParser.inline.ruler.before("escape", "math_inline", parseInlineMath);
-  markdownParser.renderer.rules.math_inline = (tokens, index) => {
+  markdownParser.renderer.rules.math_inline = (tokens, index, _options, env) => {
     const token = tokens[index];
-    return token ? renderMath(token.content, Boolean(token.meta?.displayMode)) : "";
+    return token ? renderMath(token.content, Boolean(token.meta?.displayMode), env) : "";
   };
-  markdownParser.renderer.rules.math_block = (tokens, index) => {
+  markdownParser.renderer.rules.math_block = (tokens, index, _options, env) => {
     const token = tokens[index];
     if (!token) {
       return "";
     }
-    return renderMath(token.content, true);
+    return renderMath(token.content, true, env);
   };
 }
