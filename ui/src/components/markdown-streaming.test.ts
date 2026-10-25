@@ -29,6 +29,106 @@ vi.mock(import("dompurify"), async (importOriginal) => {
 });
 
 describe("toStreamingMarkdownParts", () => {
+  it("shares the math budget across stable appends and the current tail", () => {
+    const key = "math-admission-appends";
+    let source = "";
+    sanitizedInputLengths.length = 0;
+    try {
+      for (let index = 0; index < 201; index++) {
+        source += "$x$\n\n";
+        const html = toStreamingMarkdownParts(source, {}, key).join("");
+        expect(html.match(/<openclaw-markdown-math /gu) ?? []).toHaveLength(
+          Math.min(index + 1, 200),
+        );
+      }
+      // Admission must not require reparsing or sanitizing the retained prefix.
+      expect(sanitizedInputLengths.reduce((sum, length) => sum + length, 0)).toBeLessThan(
+        source.length * 25,
+      );
+      const fragment = htmlFragment(
+        toStreamingMarkdownParts(
+          source + '$<img src="https://example.invalid/budget">$',
+          {},
+          key,
+        ).join(""),
+      );
+      expect(fragment.querySelectorAll("openclaw-markdown-math")).toHaveLength(200);
+      expect(fragment.querySelector("img")).toBeNull();
+      expect(fragment.textContent).toContain('$x$\n$<img src="https://example.invalid/budget">$');
+    } finally {
+      sanitizedInputLengths.length = 0;
+    }
+  });
+
+  it("does not spend admission twice on tail rerenders, replacement, or promotion", () => {
+    const key = "math-admission-tail";
+    const prefix = "$x$\n\n".repeat(199);
+    toStreamingMarkdownParts(prefix, {}, key);
+    for (const tail of ["$y$", "$y$", "$z$", "$z$\n", "$z$\n\n", "$z$\n\n$overflow$"]) {
+      const fragment = htmlFragment(toStreamingMarkdownParts(prefix + tail, {}, key).join(""));
+      expect(fragment.querySelectorAll("openclaw-markdown-math")).toHaveLength(200);
+      expect([...fragment.querySelectorAll("openclaw-markdown-math")].at(-1)?.textContent).toBe(
+        tail.startsWith("$y$") ? "$y$" : "$z$",
+      );
+      if (tail.includes("overflow")) {
+        expect(fragment.textContent).toContain("$overflow$");
+      }
+    }
+  });
+
+  it("isolates message budgets and rebuilds admission with invalidated prefixes", () => {
+    const key = "math-admission-owner";
+    const full = "$x$\n\n".repeat(200);
+    toStreamingMarkdownParts(full, {}, key);
+    for (const [source, options, streamKey] of [
+      ["$other$\n\n$tail$", {}, "math-admission-other"],
+      ["$replacement$\n\n$tail$", {}, key],
+      ["$fresh$\n\n$tail$", {}, undefined],
+      ["$static$\n\n$tail$", { fileLinks: true }, key],
+    ] as const) {
+      expect(
+        htmlFragment(
+          toStreamingMarkdownParts(source, options, streamKey).join(""),
+        ).querySelectorAll("openclaw-markdown-math"),
+      ).toHaveLength(2);
+    }
+    toStreamingMarkdownParts(full, {}, key);
+    expect(toStreamingMarkdownParts("", {}, key)).toEqual(["", ""]);
+    expect(
+      htmlFragment(toStreamingMarkdownParts("$reset$", {}, key).join("")).querySelectorAll(
+        "openclaw-markdown-math",
+      ),
+    ).toHaveLength(1);
+    // Changing display options reparses the same stable prefix from a fresh budget.
+    toStreamingMarkdownParts(full, {}, key);
+    expect(
+      htmlFragment(
+        toStreamingMarkdownParts(full + "$overflow$", { fileLinks: true }, key).join(""),
+      ).querySelectorAll("openclaw-markdown-math"),
+    ).toHaveLength(200);
+  });
+
+  it("rebuilds math admission when file-label collisions reparse the stable prefix", () => {
+    const key = "math-admission-reparsed-prefix";
+    const prefix = "$x$\n\n".repeat(198) + "See src/one/index.ts.\n\n";
+    toStreamingMarkdownParts(prefix, { fileLinks: true }, key);
+    const fragment = htmlFragment(
+      toStreamingMarkdownParts(
+        prefix + "$y$ in src/two/index.ts.\n\n$$z$$\n\n$overflow$",
+        { fileLinks: true },
+        key,
+      ).join(""),
+    );
+    expect(fragment.querySelectorAll("openclaw-markdown-math")).toHaveLength(200);
+    expect(fragment.querySelector('openclaw-markdown-math[data-display="true"]')?.textContent).toBe(
+      "$$z$$",
+    );
+    expect(fragment.textContent).toContain("$overflow$");
+    expect(
+      [...fragment.querySelectorAll(".markdown-file-link")].map((link) => link.textContent),
+    ).toEqual(["one/index.ts", "two/index.ts"]);
+  });
+
   it("renders completed paragraphs with linear sanitizer input", () => {
     sanitizedInputLengths.length = 0;
     let source = "";
