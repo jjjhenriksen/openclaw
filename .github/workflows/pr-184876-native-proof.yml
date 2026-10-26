@@ -17,11 +17,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          fetch-depth: 2
+          fetch-depth: 1
       - name: Record product identity and toolchain
         run: |
           mkdir -p validation-logs
           git rev-parse HEAD | tee validation-logs/fork-head.txt
+          git fetch --no-tags --depth=1 origin 9bc5eda2d19d224dbced54e4ae3d3b3520a30b50
           git diff 9bc5eda2d19d224dbced54e4ae3d3b3520a30b50 -- apps/macos/Sources apps/shared > validation-logs/production.diff
           test ! -s validation-logs/production.diff
           for app in /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app; do
