@@ -1,0 +1,40 @@
+name: PR 184876 proof tooling checks
+on:
+  push:
+    branches: [validation/pr-184876-native-proof]
+    paths: [.github/workflows/pr-184876-proof-tooling.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tooling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.22.1
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          pnpm install --frozen-lockfile --ignore-scripts --config.engine-strict=false
+      - name: Check workflow guards and native launcher on GNU Bash host
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' 2>&1 | tee proof-tooling-tests.log
+          import pathlib, re, subprocess
+          paths = [str(p) for p in pathlib.Path('test/scripts').glob('*.test.ts')
+                   if re.fullmatch(r'(ci-workflow.*|ci-swift-cache-lifetime|macos-native-test-launch)\.test\.ts', p.name)]
+          assert len(paths) == 9, paths
+          raise SystemExit(subprocess.call(['node', 'scripts/run-vitest.mjs', *paths, '--maxWorkers=1']))
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: pr-184876-proof-tooling-results
+          path: proof-tooling-tests.log
+          retention-days: 14
