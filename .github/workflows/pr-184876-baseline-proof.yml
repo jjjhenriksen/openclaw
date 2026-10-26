@@ -1,0 +1,96 @@
+name: PR 184876 baseline picker reproduction
+on:
+  push:
+    branches: [validation/pr-184876-native-proof]
+    paths: [.github/workflows/pr-184876-baseline-proof.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr-184876-baseline-proof
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Record product identity and toolchain
+        run: |
+          mkdir -p validation-logs
+          git rev-parse HEAD | tee validation-logs/fork-head.txt
+          git fetch --no-tags --depth=1 origin 512aaf206b3a80f2baffe4438a28ff055be47537
+          cp apps/macos/Tests/OpenClawIPCTests/GatewayPickerBaselineProofTests.swift /tmp/GatewayPickerBaselineProofTests.swift
+          git restore --source=512aaf206b3a80f2baffe4438a28ff055be47537 --worktree -- apps/macos
+          cp /tmp/GatewayPickerBaselineProofTests.swift apps/macos/Tests/OpenClawIPCTests/
+          git diff 512aaf206b3a80f2baffe4438a28ff055be47537 -- apps/macos/Sources > validation-logs/production.diff
+          test ! -s validation-logs/production.diff
+          for app in /Applications/Xcode_26.4.1.app /Applications/Xcode_26.4.app; do
+            if [[ -d "$app" ]]; then
+              echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          sw_vers | tee validation-logs/environment.log
+          swift --version | tee -a validation-logs/environment.log
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.22.1
+      - name: Install frozen dependencies and native assets
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "$(node -p 'require("./package.json").packageManager')" --activate
+          pnpm install --frozen-lockfile --config.engine-strict=false 2>&1 | tee validation-logs/dependencies.log
+          node scripts/prepare-apple-mermaid.mjs 2>&1 | tee validation-logs/assets.log
+      - name: Build native tests without changing production code
+        run: |
+          set -euo pipefail
+          swift build --package-path apps/macos --build-system native --build-tests --disable-keychain --disable-netrc --disable-index-store --jobs 3 2>&1 | tee validation-logs/build.log
+      - name: Build real Gateway and Control UI
+        run: |
+          set -euo pipefail
+          pnpm build 2>&1 | tee validation-logs/gateway-build.log
+          pnpm ui:build 2>&1 | tee validation-logs/ui-build.log
+      - name: Launch two credentialless loopback Gateways and exercise embedded conversation
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/picker-a" "$RUNNER_TEMP/picker-b"
+          for pair in a:19876 b:19877; do
+            label="${pair%:*}"
+            port="${pair#*:}"
+            OPENCLAW_STATE_DIR="$RUNNER_TEMP/picker-$label" OPENCLAW_CONFIG_PATH="$RUNNER_TEMP/picker-$label/config.json" node openclaw.mjs gateway run --allow-unconfigured --auth none --bind loopback --port "$port" > "validation-logs/gateway-$label.log" 2>&1 &
+            echo "$!" >> validation-logs/gateway-pids.txt
+          done
+          trap 'while read -r pid; do kill "$pid" 2>/dev/null || true; done < validation-logs/gateway-pids.txt' EXIT
+          python3 - <<'PY'
+          import time, urllib.request
+          for port in (19876,19877):
+              for attempt in range(90):
+                  try:
+                      with urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=1) as response:
+                          assert response.status == 200
+                      break
+                  except Exception:
+                      time.sleep(1)
+              else:
+                  raise RuntimeError(f'Gateway {port} did not become healthy')
+          PY
+          node scripts/test-macos-native.mts default --package-path apps/macos --build-system native --skip-build --filter GatewayPickerBaselineProofTests 2>&1 | tee validation-logs/embedded-tests.log
+      - name: Preserve synthetic captures and final source diff
+        if: always()
+        run: |
+          mkdir -p validation-logs/captures
+          find "$RUNNER_TEMP" -type f -path '*/openclaw-menu-default-*/*' -name 'picker-*.png' -exec cp {} validation-logs/captures/ \;
+          git diff --check
+          git status --short > validation-logs/source-status.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: pr-184876-baseline-evidence
+          path: validation-logs/
+          retention-days: 14
+          if-no-files-found: error
