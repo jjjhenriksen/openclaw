@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: pr-184876-native-proof
+  group: pr-184876-native-proof-runtime
   cancel-in-progress: false
 jobs:
   native:
@@ -56,7 +56,7 @@ jobs:
         if: ${{ !cancelled() && steps.focused.outcome != 'skipped' }}
         run: |
           set -euo pipefail
-          pnpm build 2>&1 | tee validation-logs/gateway-build.log
+          pnpm build --profile runtime 2>&1 | tee validation-logs/gateway-build.log
           pnpm ui:build 2>&1 | tee validation-logs/ui-build.log
       - name: Launch two credentialless loopback Gateways and exercise embedded conversation
         if: ${{ !cancelled() && steps.focused.outcome != 'skipped' }}
