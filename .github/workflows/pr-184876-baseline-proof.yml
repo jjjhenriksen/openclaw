@@ -53,7 +53,7 @@ jobs:
       - name: Build real Gateway and Control UI
         run: |
           set -euo pipefail
-          pnpm build --profile runtime 2>&1 | tee validation-logs/gateway-build.log
+          pnpm build runtime 2>&1 | tee validation-logs/gateway-build.log
           pnpm ui:build 2>&1 | tee validation-logs/ui-build.log
       - name: Launch two credentialless loopback Gateways and exercise embedded conversation
         run: |

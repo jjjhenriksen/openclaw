@@ -68,7 +68,7 @@ struct GatewayPickerForkProofTests {
         }
     }
 
-    private static func selectGateway(_ name: String, in window: NSWindow) async throws {
+    static func selectGateway(_ name: String, in window: NSWindow) async throws {
         try await AppKitTestSupport.startApplication()
         let button = try await AppKitTestSupport.waitForAccessibilityElement(
             in: window, description: "Gateway identity menu",
@@ -87,7 +87,7 @@ struct GatewayPickerForkProofTests {
         (view as? WKWebView).map { [$0] } ?? view.subviews.flatMap { webViews(in: $0) }
     }
 
-    private static func readyWeb(in window: NSWindow) async throws -> WKWebView {
+    static func readyWeb(in window: NSWindow) async throws -> WKWebView {
         print("FORK_PROOF: waiting for embedded composer in window \(window.windowNumber)")
         try await TestWait.state("real embedded web composer") {
             guard let content = window.contentView else { return false }
@@ -107,17 +107,17 @@ struct GatewayPickerForkProofTests {
         throw CocoaError(.fileReadUnknown)
     }
 
-    private static func draft(in web: WKWebView) async throws -> String {
+    static func draft(in web: WKWebView) async throws -> String {
         try #require(try await web.evaluateJavaScript("document.querySelector('textarea')?.value") as? String)
     }
 
-    private static func setDraft(_ text: String, in web: WKWebView) async throws {
+    static func setDraft(_ text: String, in web: WKWebView) async throws {
         let literal = try String(decoding: JSONEncoder().encode(text), as: UTF8.self)
         _ = try await web.evaluateJavaScript("{ const input=document.querySelector('textarea'); input.value=\(literal); input.dispatchEvent(new Event('input',{bubbles:true})); }")
         #expect(try await draft(in: web) == text)
     }
 
-    private static func capture(_ window: NSWindow, web: WKWebView, name: String) async throws {
+    static func capture(_ window: NSWindow, web: WKWebView, name: String) async throws {
         let directory = try #require(ProcessInfo.processInfo.environment["OPENCLAW_TEST_MENU_CAPTURE_DIR"])
         let output = URL(fileURLWithPath: directory)
         window.contentView?.layoutSubtreeIfNeeded()
