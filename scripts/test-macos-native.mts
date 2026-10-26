@@ -317,6 +317,12 @@ await runWithFailedTrailer("macos-native", async () => {
         const names =
           profileMode === "default"
             ? [
+                "picker-menu-a",
+                "picker-menu-b",
+                "picker-a",
+                "picker-b",
+                "picker-a-return",
+                "picker-retired",
                 "catalog",
                 "selected",
                 "effort",
