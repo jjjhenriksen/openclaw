@@ -635,7 +635,7 @@ export function createChatSendGoalCommitGuard(
   > & {
     admission: {
       initialSessionEntry?: SessionEntry;
-      workerGoalAdmission?: boolean;
+      codexGoalAdmission?: "local" | "worker";
       assertInitialSkillSelection?: () => void;
       activeRunAbort: Pick<ReturnType<typeof registerChatAbortController>, "controller">;
       lifecycleGeneration: ReturnType<typeof getAgentEventLifecycleGeneration>;
@@ -705,7 +705,7 @@ export function createChatSendGoalCommitGuard(
     }
   };
   const sources = [sessionMutationCommitGuard, sessionMutationAuthorization?.assertCurrent];
-  const assertCurrent = admission.workerGoalAdmission
+  const assertCurrent = admission.codexGoalAdmission
     ? composeSessionSourceAssertion(sources, check)
     : () => check(() => sources.forEach((source) => source?.()));
   return { assertCurrent, routingPredicate };

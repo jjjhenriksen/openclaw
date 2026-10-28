@@ -38,7 +38,7 @@ import { createChatSendDashboardAuthority } from "./chat-send-dashboard-authorit
 import { readChatSendDiagnostics, startChatSendDiagnostics } from "./chat-send-diagnostics.js";
 import { handleChatSendSetupError } from "./chat-send-dispatch-errors.js";
 import type { ChatSendExternalAuthorityAdmission } from "./chat-send-external-authority-contract.js";
-import { acknowledgeWorkerGoal } from "./chat-send-goal-ack.js";
+import { acknowledgeCodexGoal } from "./chat-send-goal-ack.js";
 import { createChatSendMessageInjectionStarter } from "./chat-send-message-injection.js";
 import type { ChatSendInternalOptions } from "./chat-send-options.js";
 import { createChatSendSessionInitialization } from "./chat-send-session-binding.js";
@@ -217,9 +217,9 @@ export async function handleChatSendWithStorage(
           sessionMutationCommitGuard,
         })
       : undefined;
-    const workerGoalCommitted = admission.workerGoalAdmission ? createDeferredCore() : undefined;
+    const codexGoalCommitted = admission.codexGoalAdmission ? createDeferredCore() : undefined;
     const userTurn = createGatewayChatUserTurnController({
-      onMessagePersisted: workerGoalCommitted?.resolve,
+      onMessagePersisted: codexGoalCommitted?.resolve,
       ...setup,
       client,
       transcript: options?.transcript,
@@ -319,7 +319,7 @@ export async function handleChatSendWithStorage(
     phase?.mark("persist");
     let approvedInput: PersistedUserTurnMessage | undefined;
     const stageInput =
-      admission.workerGoalAdmission ||
+      admission.codexGoalAdmission ||
       Boolean(
         entry?.sessionId &&
         (userTurn.baseInput.display !== false || request.restartResume) &&
@@ -584,7 +584,7 @@ export async function handleChatSendWithStorage(
     admission.setDiscardAbandonedPreparedMedia(undefined);
     phase?.mark("response");
     admission.markInputAccepted();
-    if (!admission.workerGoalAdmission) {
+    if (!admission.codexGoalAdmission) {
       respond(true, ackPayload, undefined, { runId: clientRunId });
     }
     phase?.finish();
@@ -650,10 +650,10 @@ export async function handleChatSendWithStorage(
       runOutsideOperatorToolGatewayAuthority(() => startChatDispatch(dispatch)),
     );
     admittedCleanup.dispatched = true;
-    if (workerGoalCommitted) {
-      await acknowledgeWorkerGoal({
+    if (codexGoalCommitted) {
+      await acknowledgeCodexGoal({
         dispatch,
-        committed: workerGoalCommitted.promise,
+        committed: codexGoalCommitted.promise,
         dispatched,
         ackPayload,
         respond,

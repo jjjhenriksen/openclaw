@@ -52,7 +52,7 @@ import {
   prepareChatSendAcpRefresh,
 } from "./chat-send-admission-context.js";
 import { respondChatSessionRoutingChanged } from "./chat-send-admission-errors.js";
-import { isWorkerGoalChatAdmission } from "./chat-send-goal-admission.js";
+import { resolveCodexGoalAdmission } from "./chat-send-goal-admission.js";
 import { prepareGoalChatSendRetry } from "./chat-send-goal-retry.js";
 import { prepareChatSendInterruptAdmission } from "./chat-send-interrupt-admission.js";
 import {
@@ -170,7 +170,7 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
   let replyTargetsCaptured = false;
   let gatewayWorkAdmission: Awaited<ReturnType<typeof beginSessionEffect>> | undefined;
   let restartSafeAdmission: ReturnType<typeof resolveRestartSafeChatAdmission>;
-  let workerGoalAdmission = false;
+  let codexGoalAdmission: "local" | "worker" | undefined;
   let initialSessionEntry: SessionEntry | undefined;
   let admittedSessionEntry: SessionEntry | undefined;
   let admittedSessionSettings: ReturnType<typeof captureAdmittedChatSendSessionSettings>;
@@ -389,6 +389,7 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
         }
         const placement = localRecovery ? preparedPlacement?.facts.current() : undefined;
         const acpMeta = acp?.meta ?? null;
+        codexGoalAdmission = resolveCodexGoalAdmission(params, latestSession, placement, acpMeta);
         restartSafeAdmission = resolveRestartSafeChatAdmission({
           resolveGatewayContext: context.resolveGatewayContext,
           agentId,
@@ -401,16 +402,15 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
           acpMeta,
           now: Date.now(),
           placement,
-          request: restartSafeRequest,
+          request: codexGoalAdmission ? undefined : restartSafeRequest,
           requestedSessionId,
           sessionId: admittedSessionId,
           sessionKey: latestSession.canonicalKey,
           storePath: latestSession.storePath,
         });
-        workerGoalAdmission = isWorkerGoalChatAdmission(params, latestSession, placement, acpMeta);
-        if (request.goalOperation && !restartSafeAdmission && !workerGoalAdmission) {
+        if (request.goalOperation && !restartSafeAdmission && !codexGoalAdmission) {
           throw new Error(
-            "Goal start or resume requires an idle built-in local session with recoverable history or a supported Codex cloud-worker session.",
+            "Goal start or resume requires an idle built-in local session with recoverable history or a supported local or cloud-worker Codex session.",
           );
         }
         if (retryableClaim && !restartSafeAdmission) {
@@ -479,8 +479,8 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
         admittedRunAbort.controller.abort(reason);
       },
     });
-    if (workerGoalAdmission && !capturedOperator.authority) {
-      throw new Error("Worker Goals require a current authenticated operator request.");
+    if (codexGoalAdmission && !capturedOperator.authority) {
+      throw new Error("Codex Goals require a current authenticated operator request.");
     }
     admittedRunAbort.initializeTiming({ now: Date.now(), timeoutMs });
     workPhase?.finish();
@@ -537,8 +537,7 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
     !reservationSuperseded &&
     !readChatSendDedupeResponse(context.dedupe, clientRunId)
   ) {
-    // Transfer immutable input identity before retiring the pending reservation.
-    // It survives transient pre-ACK failures without inventing a successful response.
+    // Retain immutable input identity across pre-ACK failures before retiring the reservation.
     context.dedupe.set(`chat:${clientRunId}`, {
       ts: Date.now(),
       ok: true,
@@ -708,7 +707,7 @@ export async function admitChatSend(params: ChatSendAdmissionParams) {
           sourceRef,
         }),
       restartSafeAdmission,
-      workerGoalAdmission,
+      codexGoalAdmission,
       setDiscardAbandonedPreparedMedia: setDiscardPreparedMedia,
     },
   };

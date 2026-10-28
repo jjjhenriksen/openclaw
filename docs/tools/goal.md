@@ -17,6 +17,10 @@ In built-in chat runs and supported Codex cloud-worker sessions, OpenClaw contin
 pursuing an active goal after a normal turn finishes, even when the model ends with a final reply instead of calling
 another tool. A goal is not a reminder, cron job, or standing order.
 
+Local Codex sessions also support explicit Resume of an existing goal. Resume
+retains the goal identity, objective, and conversation history. If current work is
+still active, wait for it to settle before retrying Resume.
+
 Goals are session state: they move with the session key, survive process
 restarts, and appear in `/goal`, the model-facing goal tools, and the TUI
 footer.
