@@ -29,8 +29,8 @@ function persistedHistory(messages: HistoryMessage[]) {
   return messages.map((message) => {
     const copy = structuredClone(message);
     // This cursor binds the current display generation, not persisted message bytes.
-    if (copy.__openclaw?.transcriptPosition) {
-      delete copy.__openclaw.transcriptPosition.source;
+    if (copy["__openclaw"]?.transcriptPosition) {
+      delete copy["__openclaw"].transcriptPosition.source;
     }
     return copy;
   });
