@@ -106,10 +106,7 @@ it("retains a protected parent through private completion and owner reentry", as
         "Codex thread thread-1 still has background work after waiting for cleanup; stop its running work and retry.",
     });
     expect(isCodexAppServerLiveThreadProtected(harness.client, "thread-1")).toBe(true);
-    expect(harness.requests).not.toContainEqual({
-      method: "thread/unsubscribe",
-      params: { threadId: "thread-1" },
-    });
+    expect(harness.requests.filter(({ method }) => method === "thread/unsubscribe")).toEqual([]);
     expect(
       harness.requests
         .filter(({ method }) => ["thread/start", "thread/resume"].includes(method))

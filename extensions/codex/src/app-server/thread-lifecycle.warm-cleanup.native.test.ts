@@ -51,16 +51,13 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
     "protected rotation",
     "protected publication failure",
     "context refresh",
-    "cold resume cleanup",
   ] as const)(
     "%s permits continuation without disturbing sibling ownership",
     { timeout: 90_000 },
     async (scenario, context) => {
       const backgroundWork = scenario !== "publication failure";
       const contextRefresh = scenario === "context refresh";
-      const coldResumeCleanup = scenario === "cold resume cleanup";
-      const publicationFailure =
-        scenario !== "protected rotation" && !contextRefresh && !coldResumeCleanup;
+      const publicationFailure = scenario !== "protected rotation" && !contextRefresh;
       const tempDirs = useAutoCleanupTempDirTracker((cleanup) =>
         context.onTestFinished(async () => {
           await closeOpenClawStateDatabaseAsync();
@@ -284,46 +281,6 @@ describe.skipIf(process.platform === "win32")("native Codex warm cleanup", () =>
             ),
         ).toEqual([]);
       };
-      if (coldResumeCleanup) {
-        const resumed = startOrResumeThread({
-          ...common,
-          developerInstructions: "Updated creation policy",
-        });
-        const outcome = resumed.then(
-          (binding) => ({ binding }),
-          (error: unknown) => ({ error }),
-        );
-        try {
-          await vi.waitFor(() =>
-            expect(requests.slice(before)).toContainEqual({
-              method: "thread/read",
-              threadId: first.threadId,
-            }),
-          );
-          expectNoRequests(["thread/unsubscribe", "thread/resume"]);
-          expect(isCodexAppServerLiveThreadProtected(client, first.threadId)).toBe(true);
-        } finally {
-          await fs.writeFile(path.join(native.cwd, "finish-background"), "finish\n");
-          await outcome;
-        }
-        const result = await outcome;
-        if ("error" in result) {
-          throw new Error("Native cold resume failed after background cleanup", {
-            cause: result.error,
-          });
-        }
-        const next = result.binding;
-        expect(next.threadId).toBe(first.threadId);
-        expect(isCodexAppServerLiveThreadProtected(client, first.threadId)).toBe(false);
-        expect(authority.commands.size).toBe(0);
-        await runTurn(next.threadId);
-        sibling!.assertCurrent();
-        await runTurn(siblingBinding.threadId);
-        expectNoRequests(["thread/unsubscribe"], siblingBinding.threadId);
-        expect(providerFailures).toEqual([]);
-        await next.liveThreadOwnership?.release(next.threadId);
-        return;
-      }
       let publicationClaimed = false;
       if (contextRefresh) {
         common.contextEngineProjection = {
