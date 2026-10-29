@@ -4,23 +4,17 @@ import { button, chip, clock, el } from "./page-dom.js";
 import { openConfirmDialog, openStartDialog, scribeTile } from "./scribe-dialog.js";
 import {
   repairScribe,
-  retryScribe,
   runScribeNow,
   setScribePaused,
   startScribe,
   turnOffScribe,
 } from "./scribes-actions.js";
-import {
-  REVIEW_NIGHTLY_SCHEDULE,
-  scribeById,
-  scribeLabel,
-  type ScribeSetup,
-} from "./scribes-catalog.js";
+import { scribeById, scribeLabel } from "./scribes-catalog.js";
 import {
   detectSources,
   loadRuns,
   loadScribes,
-  resultFromText,
+  statusFromText,
   type ScribeDetection,
   type ScribeJob,
   type ScribeRun,
@@ -37,7 +31,7 @@ const STATUS: Record<ScribeStatus, [string, string]> = {
   paused: ["Paused", ""],
   failing: ["Failing", "scribe-chip-warn"],
   done: ["Done", "scribe-chip-on"],
-  reauth: ["Needs reauthorization", "scribe-chip-warn"],
+  missing: ["Conversation not found", "scribe-chip-warn"],
 };
 /**
  * Jobs whose first run this page already forced. A job reads as never run until its forced run
@@ -97,41 +91,12 @@ function scheduleText(job: ScribeJob) {
   return schedule.kind === "event" ? "When Knowledge maintenance asks" : schedule.kind;
 }
 
-// The options a scribe was started with, in the dialog's words.
-function optionsText(setup: ScribeSetup) {
-  const { options } = setup;
-  if ("scope" in options) {
-    const since: Record<string, string> = {
-      "30d": "the last 30 days",
-      "90d": "the last 90 days",
-      all: "the beginning",
-      today: "today",
-    };
-    return `${options.scope === "all" ? "Active and archived" : "Active"} conversations, from ${since[options.since] ?? "an unknown start"} · ${setup.mode === "once" ? "once" : "keeps learning"}`;
-  }
-  if ("sources" in options && Array.isArray(options.sources)) {
-    const names: Record<string, string> = {
-      "memory-md": "MEMORY.md",
-      "daily-notes": "daily notes",
-      dreams: "Dreaming diary",
-    };
-    return options.sources.map((source) => names[source] ?? source).join(", ");
-  }
-  // A review setup without a schedule runs on the skill's weekly default.
-  if (setup.scribe === "unlinked-review") {
-    return "schedule" in options && options.schedule === REVIEW_NIGHTLY_SCHEDULE
-      ? "Nightly"
-      : "Weekly";
-  }
-  return "No options";
-}
-
 // One-line state for an "On" row.
 function activeMeta(snapshot: ScribeSnapshot) {
   const { status, job, result } = snapshot;
   const meta = el("span", undefined, "scribe-meta");
   const dot = el("span", undefined, "scribe-dot");
-  if (status === "failing" || status === "reauth") {
+  if (status === "failing" || status === "missing") {
     dot.classList.add("scribe-dot-warn");
   } else if (status !== "on") {
     dot.classList.add("scribe-dot-idle");
@@ -140,14 +105,18 @@ function activeMeta(snapshot: ScribeSnapshot) {
   const parts: string[] = [];
   if (status === "starting") {
     parts.push("Setting up in its conversation");
-  } else if (status === "reauth") {
-    parts.push("Its conversation is archived or gone. Repair reconnects it.");
+  } else if (status === "missing") {
+    parts.push(
+      snapshot.session?.archived
+        ? "Its conversation is archived. Repair restores it."
+        : "Its conversation was deleted. Repair starts a new one.",
+    );
   } else if (status === "paused") {
     parts.push("Paused");
   } else if (firstRunPending(snapshot)) {
     parts.push("First run in progress");
   }
-  if (job && status !== "reauth") {
+  if (job && status !== "missing") {
     parts.push(scheduleText(job));
     if (job.state.lastRunAtMs) {
       parts.push(`Last run ${when(job.state.lastRunAtMs)}`);
@@ -213,6 +182,7 @@ export async function scribes(ui: Page, n: number, target: HTMLElement) {
     return;
   }
   renderScribesTab(ui.scribesTab, snapshots.filter((entry) => isOn(entry.status)).length);
+  s.scribesCountAgent = agentId;
   target.replaceChildren(snapshot ? detail(ui, snapshot, runs) : list(ui, snapshots, detection));
 }
 
@@ -244,8 +214,13 @@ const firstRunPending = (snapshot: ScribeSnapshot) =>
     (snapshot.job.state.runningAtMs || firstRuns.has(snapshot.job.id)),
   );
 
+/** Number of the agent's scribes that are on, for the Scribes tab count. */
+export async function countScribesOn(host: Parameters<typeof loadScribes>[0], agentId: string) {
+  return (await loadScribes(host, agentId)).filter((entry) => isOn(entry.status)).length;
+}
+
 /** Tab label with the count of scribes that are on. */
-function renderScribesTab(tab: HTMLButtonElement, on: number) {
+export function renderScribesTab(tab: HTMLButtonElement, on: number) {
   tab.replaceChildren(document.createTextNode("Scribes"));
   if (on) {
     const badge = el("span", String(on), "knowledge-tab-count");
@@ -272,13 +247,12 @@ function start(ui: Page, snapshot: ScribeSnapshot, detection: ScribeDetection) {
   const attempt = crypto.randomUUID();
   openStartDialog({
     scribe: snapshot.scribe,
-    agentId,
     agentName,
     storeName,
     detection,
     canWrite: host.connection.canWrite,
-    start: async (setup) => {
-      await startScribe(host, snapshot, setup, attempt);
+    start: async (prompt) => {
+      await startScribe(host, snapshot, agentId, prompt, attempt);
       ui.announce(`Started ${scribeLabel(snapshot.scribe)}.`);
       openScribe(ui, snapshot.scribe.id);
     },
@@ -413,8 +387,8 @@ function runText(run: ScribeRun) {
   if (run.status === "skipped") {
     return run.error ? `Skipped: ${run.error}` : "Skipped";
   }
-  // A scribe run's summary is its final reply; its result line is the one-sentence summary.
-  return run.summary ? (resultFromText(run.summary)?.summary ?? run.summary) : "Finished";
+  // A scribe run's summary is its final reply; its status line holds the one-sentence summary.
+  return run.summary ? statusFromText(run.summary)?.summary || run.summary : "Finished";
 }
 
 function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
@@ -466,7 +440,7 @@ function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
     controls.push(node);
     return node;
   };
-  if (job && status !== "reauth") {
+  if (job && status !== "missing") {
     actions.append(
       control("Run now", () => runScribeNow(host, job), `${scribe.title} is running.`),
     );
@@ -480,26 +454,19 @@ function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
       ),
     );
   }
-  // A failed one-time scribe starts over with its setup; an ongoing one repairs its automation.
-  const once = !job && (snapshot.setup?.mode ?? scribe.modes[0]) === "once";
-  if (status === "failing" && once) {
-    actions.append(
-      control(
-        "Retry",
-        () => retryScribe(host, snapshot, agentId),
-        `Asked ${scribeLabel(scribe)} to start over.`,
-      ),
-    );
-  } else if (status === "reauth" || status === "failing") {
+  // A scribe with an automation repairs it; one without starts over from the start dialog.
+  if (job && (status === "missing" || status === "failing")) {
     actions.append(
       control(
         "Repair",
-        () => repairScribe(host, snapshot, agentId),
-        `Asked ${scribeLabel(scribe)} to repair its setup.`,
+        () => repairScribe(host, snapshot, job, agentId),
+        status === "missing" && session?.archived
+          ? `Restored ${scribeLabel(scribe)} and turned it back on.`
+          : `Asked ${scribeLabel(scribe)} to repair its setup.`,
       ),
     );
   }
-  if (job && status !== "reauth") {
+  if (job && status !== "missing") {
     const paused = !job.enabled;
     actions.append(
       control(
@@ -528,9 +495,9 @@ function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
     turnOff.disabled = !canWrite;
     actions.append(turnOff);
   }
-  if (!job && (status === "available" || status === "done")) {
+  if (!job && status !== "starting") {
     const again = button(
-      scribe.startLabel,
+      status === "failing" ? "Start again…" : scribe.startLabel,
       () => start(ui, snapshot, {}),
       "knowledge-button knowledge-primary knowledge-small",
     );
@@ -577,7 +544,7 @@ function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
           : "Not run yet",
       ],
     );
-  } else if (snapshot.setup?.mode === "once") {
+  } else if (status === "done") {
     facts.push(["Schedule", "Once, nothing scheduled"]);
   }
   facts.push(
@@ -585,14 +552,11 @@ function detail(ui: Page, snapshot: ScribeSnapshot, runs: ScribeRun[]) {
       "Conversation",
       session
         ? `${scribeLabel(scribe)}${session.createdAt ? ` · started ${when(session.createdAt)}` : ""}${session.archived ? " · archived" : ""}`
-        : "Gone",
+        : "Not found",
     ],
     ["Model", lastRun?.model ?? `${agentName}’s default`],
     ["Store", storeName],
   );
-  if (snapshot.setup) {
-    facts.push(["Options", optionsText(snapshot.setup)]);
-  }
   facts.push(["Follows", `${scribe.skill} skill · ships with Knowledge`]);
   if (job) {
     facts.push([
