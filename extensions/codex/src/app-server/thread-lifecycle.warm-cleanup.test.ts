@@ -1,6 +1,7 @@
 import path from "node:path";
+import { setImmediate } from "node:timers/promises";
 import { AgentHarnessPreflightError } from "openclaw/plugin-sdk/agent-harness-runtime";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   claimCodexAppServerLiveThread,
   isCodexAppServerLiveThreadClaimed,
@@ -120,6 +121,66 @@ describe("Codex warm subscription cleanup", () => {
         failedPublication.mockRestore();
         releaseProtection?.();
         await sibling?.release("active-sibling");
+      }
+    },
+  );
+
+  it.for(["settlement", "cancellation", "deadline"] as const)(
+    "joins background cleanup before cold resume: %s",
+    { timeout: 15_000 },
+    async (scenario) => {
+      const params = fixtureParams("background-cold-resume.jsonl");
+      const threadId = "background-cold-resume";
+      const fixture = await createFixture(async (method) => {
+        if (method === "thread/start" || method === "thread/resume") {
+          return threadStartResult(threadId);
+        }
+        throw new Error(`unexpected method: ${method}`);
+      });
+      const common = { client: fixture.client, params, userMcpServersEnabled: false };
+      const started = await startOrResumeThread(common);
+      expect(await retainWarmThread(fixture.client, started)).toBe(true);
+      const releaseProtection = protectCodexAppServerLiveThread(fixture.client, threadId);
+      fixture.request.mockClear();
+      // Changed creation instructions require native unload, not a warm policy bypass.
+      const controller = new AbortController();
+      const resumed = startOrResumeThread({
+        ...common,
+        developerInstructions: "updated policy",
+        signal: controller.signal,
+      });
+      // Attach immediately so the pre-fix rejection is captured before yielding.
+      const outcome = resumed.then(
+        (binding) => binding,
+        (error: unknown) => error,
+      );
+      try {
+        await vi.waitFor(() =>
+          expect(fixture.request.mock.calls.map(([method]) => method)).toContain("thread/read"),
+        );
+        await setImmediate();
+        expectNoLifecycleRequests(fixture);
+        if (scenario === "cancellation") {
+          const reason = new Error("cancel background cleanup wait");
+          controller.abort(reason);
+          expect(await outcome).toBe(reason);
+          expectNoLifecycleRequests(fixture);
+        } else if (scenario === "deadline") {
+          expect(await outcome).toMatchObject({
+            message: expect.stringContaining("still has background work"),
+          });
+          expectNoLifecycleRequests(fixture);
+        } else {
+          releaseProtection();
+          expect(await outcome).toMatchObject({ threadId, lifecycle: { action: "resumed" } });
+          expect(fixture.request.mock.calls.map(([method]) => method)).toContain(
+            "thread/unsubscribe",
+          );
+          expect(fixture.request.mock.calls.map(([method]) => method)).toContain("thread/resume");
+        }
+      } finally {
+        releaseProtection();
+        await outcome;
       }
     },
   );
