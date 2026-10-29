@@ -17,7 +17,10 @@ import {
   startOrResumeAttemptThreadWithoutSkills as startOrResumeAttemptThread,
   type CodexAttemptThreadInput as LifecycleInput,
 } from "./thread-lifecycle.test-fixtures.js";
-import { retainWarmThread, warmPluginConfig } from "./thread-lifecycle.warm-cleanup.test-support.js";
+import {
+  retainWarmThread,
+  warmPluginConfig,
+} from "./thread-lifecycle.warm-cleanup.test-support.js";
 
 function startOrResumeThread(
   input: Pick<LifecycleInput, "client" | "params"> & Partial<LifecycleInput>,
