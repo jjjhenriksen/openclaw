@@ -34,6 +34,12 @@ const literals = [
 ];
 const sharedOptions = { shareSchemaFunctions: true, hoistSchemaFunctions: true };
 const cases: Array<[name: string, schema: XSchema, accepted: unknown[], rejected: unknown[]]> = [
+  [
+    "compiler-looking property names",
+    Type.Object({ unique_0: Type.String(), check_0: Type.Number() }),
+    [{ unique_0: "yes", check_0: 1 }],
+    [{ unique_0: 1, check_0: "no" }],
+  ],
   ["decimal multiples", Type.Number({ multipleOf: 0.01 }), [0, 1.2, 0.29], [0.001, 1.234, "1.20"]],
   [
     "structural constants and own prototype-looking keys independent of property order",
@@ -102,6 +108,29 @@ describe("standalone TypeBox checks", () => {
     expect(await compileStandaloneValidators(entries, sharedOptions)).toBe(first);
     Build(Type.Object({}, { propertyNames: { type: "string" } }));
     expect(await compileStandaloneValidators(entries, sharedOptions)).toBe(first);
+  });
+
+  it("keeps existing predicates byte-stable when unrelated schemas are inserted or reordered", async () => {
+    const entries = [
+      { name: "keep", schema: Type.Array(Type.String({ pattern: "^keep$" })) },
+      { name: "other", schema: Type.Object({ count: Type.Integer() }) },
+    ];
+    const declarations = async (input: typeof entries) => {
+      const source = await compileStandaloneValidators(input, sharedOptions);
+      return (await transform(source, { minify: false })).code.split("\n").filter(Boolean);
+    };
+    const before = await declarations(entries);
+    const reordered = await declarations([...entries].reverse());
+    expect(reordered).toEqual(before);
+    const after = await declarations([
+      { name: "added", schema: Type.Array(Type.String({ pattern: "^new$" })) },
+      ...entries,
+    ]);
+    for (const line of before.filter(
+      (line) => !line.includes("export") && !/^  (keep|other),?$/.test(line),
+    )) {
+      expect(after).toContain(line);
+    }
   });
 
   it("lets consumers tree-shake unused checks from a shared schema pool", async () => {

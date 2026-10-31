@@ -259,7 +259,7 @@ async function main() {
       platform: "browser",
       target: "es2022",
       write: false,
-      minifySyntax: true,
+      minifySyntax: !shareSchemaFunctions,
       // Remove esbuild's physical input-path banners before canonical formatting.
       // The TypeBox license is retained explicitly below.
       minifyWhitespace: true,

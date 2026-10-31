@@ -1,9 +1,10 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
 import { build } from "esbuild";
-import { IsLiteralString, Type } from "typebox";
+import { IsLiteralString, IsSchema, Type } from "typebox";
 import * as Format from "typebox/format";
 import {
   Build,
@@ -54,16 +55,19 @@ function identifier(value: unknown): string | undefined {
     : undefined;
 }
 
-function visitSyntax(source: string, callback: (node: SyntaxNode) => void): void {
-  const visit = (value: unknown): void => {
+function visitSyntax(
+  source: string,
+  callback: (node: SyntaxNode, parent?: SyntaxNode) => void,
+): void {
+  const visit = (value: unknown, parent?: SyntaxNode): void => {
     if (typeof value !== "object" || value === null) {
       return;
     }
     if (isSyntaxNode(value)) {
-      callback(value);
+      callback(value, parent);
     }
     for (const entry of Object.values(value)) {
-      visit(entry);
+      visit(entry, isSyntaxNode(value) ? value : parent);
     }
   };
   visit(parse(source, { ecmaVersion: "latest", sourceType: "module" }));
@@ -258,8 +262,41 @@ export function emitStandaloneValidatorSource(
   };
 
   const captures = variables.map((value) => external(value, binding));
-  const declarations = `const ${options.externalIdentifier ?? "External"} = [${captures.join(",")}];
+  let declarations = `const ${options.externalIdentifier ?? "External"} = [${captures.join(",")}];
     ${functions};`;
+  if (options.moduleEntries) {
+    const captureNames = captures.map(
+      (capture) => `capture_${createHash("sha256").update(capture).digest("hex").slice(0, 16)}`,
+    );
+    const replacements: Array<{ start: number; end: number; value: string }> = [];
+    visitSyntax(functions, (node) => {
+      if (
+        node.type !== "MemberExpression" ||
+        !node.computed ||
+        identifier(node.object) !== (options.externalIdentifier ?? "External") ||
+        !isSyntaxNode(node.property) ||
+        typeof node.property.value !== "number"
+      ) {
+        return;
+      }
+      const value = captureNames[node.property.value];
+      if (!value || typeof node.start !== "number" || typeof node.end !== "number") {
+        throw new Error("Invalid standalone capture reference");
+      }
+      replacements.push({ start: node.start, end: node.end, value });
+    });
+    let rewrittenFunctions = functions;
+    for (const { start, end, value } of replacements.toSorted((a, b) => b.start - a.start)) {
+      rewrittenFunctions =
+        rewrittenFunctions.slice(0, start) + value + rewrittenFunctions.slice(end);
+    }
+    declarations =
+      [...new Set(captures.map((capture, index) => `const ${captureNames[index]} = ${capture};`))]
+        .toSorted()
+        .join("\n") +
+      "\n" +
+      rewrittenFunctions;
+  }
   const source = options.moduleEntries
     ? `${declarations}\n${options.moduleEntries.map(({ name, expression }) => `export const ${name} = ${expression};`).join("\n")}`
     : `export const ${binding} = /* @__PURE__ */ (() => {
@@ -297,6 +334,31 @@ export function emitStandaloneValidatorSource(
     source: boundSource,
     imports: [...imports],
   };
+}
+
+// Only compiler identifiers are rewritten; schema literals and regexes remain data.
+function renameCompilerIdentifiers(source: string, names: ReadonlyMap<string, string>): string {
+  const edits: Array<{ start: number; end: number; value: string }> = [];
+  visitSyntax(source, (node, parent) => {
+    if (parent?.type === "MemberExpression" && !parent.computed && parent.property === node) {
+      return;
+    }
+    if (parent?.type === "Property" && !parent.computed && parent.key === node) {
+      return;
+    }
+    if (node.type !== "Identifier" || typeof node.name !== "string") {
+      return;
+    }
+    const value = names.get(node.name);
+    if (value && typeof node.start === "number" && typeof node.end === "number") {
+      edits.push({ start: node.start, end: node.end, value });
+    }
+  });
+  let rewritten = source;
+  for (const { start, end, value } of edits.toSorted((a, b) => b.start - a.start)) {
+    rewritten = rewritten.slice(0, start) + value + rewritten.slice(end);
+  }
+  return rewritten;
 }
 
 /** Emit standalone checks from canonical schemas without runtime source compilation. */
@@ -356,17 +418,117 @@ export async function compileStandaloneValidators(
         : `value => ${expression}`;
       return { name, expression: check };
     });
+    const originalFunctions = GetFunctions();
+    const stableNames = new Map<string, string>();
+    if (options.hoistSchemaFunctions) {
+      const register = (schema: XSchema, key: string) => {
+        const call = CreateFunction(stack, context, schema, "value");
+        const name = call.match(/^(check_\d+)\(/)?.[1];
+        if (!name) {
+          throw new Error("Unexpected TypeBox function expression");
+        }
+        stableNames.set(name, `check_${key.replaceAll("-", "_")}`);
+      };
+      for (const [key, schema] of Object.entries(shared.$defs)) {
+        // The synthetic inventory root changes with every added entry and is not a predicate.
+        if (schema === root) {
+          continue;
+        }
+        register(schema, key);
+      }
+      const visit = (value: unknown): void => {
+        if (!value || typeof value !== "object") {
+          return;
+        }
+        if (IsSchema(value) && "$ref" in value && typeof value.$ref === "string") {
+          register(value, `ref_${value.$ref.slice("#/$defs/".length)}`);
+        }
+        // Interned schemas store only references below schema-valued keywords.
+        // Never interpret const/enum/default data as compiler schemas.
+        for (const [key, child] of Object.entries(value)) {
+          if (
+            ["properties", "patternProperties", "dependentSchemas", "$defs"].includes(key) &&
+            child &&
+            typeof child === "object"
+          ) {
+            for (const schema of Object.values(child)) {
+              visit(schema);
+            }
+          } else if (
+            ["allOf", "anyOf", "oneOf", "prefixItems"].includes(key) &&
+            Array.isArray(child)
+          ) {
+            for (const schema of child) {
+              visit(schema);
+            }
+          } else if (
+            [
+              "items",
+              "additionalItems",
+              "additionalProperties",
+              "contains",
+              "not",
+              "if",
+              "then",
+              "else",
+              "propertyNames",
+              "unevaluatedItems",
+              "unevaluatedProperties",
+            ].includes(key)
+          ) {
+            if (Array.isArray(child)) {
+              for (const schema of child) {
+                visit(schema);
+              }
+            } else {
+              visit(child);
+            }
+          }
+        }
+      };
+      for (const schema of Object.values(shared.$defs)) {
+        visit(schema);
+      }
+    }
+    const functions = originalFunctions.map((source) => {
+      if (!options.hoistSchemaFunctions) {
+        return source;
+      }
+      const locals = new Map(stableNames);
+      // Temporary variable counters are local to each generated function.
+      visitSyntax(source, (node) => {
+        if (
+          node.type === "Identifier" &&
+          typeof node.name === "string" &&
+          /^unique_\d+$/.test(node.name) &&
+          !locals.has(node.name)
+        ) {
+          locals.set(node.name, `local_${locals.size - stableNames.size}`);
+        }
+      });
+      return renameCompilerIdentifiers(source, locals);
+    });
+    const stableEntries = entryPoints.map(({ name, expression }) => ({
+      name,
+      expression: renameCompilerIdentifiers(expression, stableNames),
+    }));
     checks = [
       collect(
         emitStandaloneValidatorSource(
           `{ ${entries.map(({ name }) => name).join(", ")} }`,
-          optimizeFunctions(GetFunctions().join(";\n")),
+          optimizeFunctions(
+            (options.hoistSchemaFunctions ? [...new Set(functions)].toSorted() : functions).join(
+              ";\n",
+            ),
+          ),
           GetExternal().variables,
           `{ ${entryPoints.map(({ name, expression }) => `${name}: ${expression}`).join(", ")} }`,
           {
             ...options,
             externalIdentifier: GetExternal().identifier,
-            moduleEntries: options.hoistSchemaFunctions ? entryPoints : undefined,
+            moduleEntries: options.hoistSchemaFunctions
+              ? stableEntries.toSorted((a, b) => a.name.localeCompare(b.name))
+              : undefined,
           },
         ),
       ),
@@ -401,7 +563,7 @@ export async function compileStandaloneValidators(
     platform: "neutral",
     target: "es2022",
     write: false,
-    minifySyntax: true,
+    minifySyntax: !options.hoistSchemaFunctions,
     minifyWhitespace: true,
     legalComments: "none",
   });

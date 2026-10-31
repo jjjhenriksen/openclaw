@@ -29,341 +29,392 @@ function CodePointCount(value) {
   let result = 0,
     index = 0,
     prev = 0;
-  for (; index < value.length;) {
-    let next = value.charCodeAt(index++) >> 10;
-    ((result += +(((prev << 8) | next) !== 13879)), (prev = next));
+  while (index < value.length) {
+    const next = value.charCodeAt(index++) >> 10;
+    result += +(((prev << 8) | next) !== 13879);
+    prev = next;
   }
   return result;
 }
-var External = [
-    /(^code$|^runtimeId$|^runtimeLabel$|^reason$|^recovery$)/u,
-    /(^action$|^sessionId$|^lifecycleRevision$|^expectedPermissionMode$|^expectedSandboxMode$|^expectedNativeRuntimeConsent$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^objective$|^expectedGoalUpdatedAt$|^expectedRunId$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^objective$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^note$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$)/u,
-    /(^deviceId$|^path$)/u,
-    /(^url$|^ref$)/u,
-    /(^mcpServers$|^mcpToolsDeny$|^skills$|^webSearch$)/u,
-    /^.*$/u,
-    /^.*$/u,
-    /(^changeId$|^voiceSessionId$|^sessionKey$|^voice$|^phase$)/u,
-    /(^workspaceId$|^root$|^fileRoot$)/u,
-  ],
-  check_0 = (value) => check_1(value),
-  check_1 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "code" in value &&
-    "runtimeId" in value &&
-    "runtimeLabel" in value &&
-    "reason" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_0, unique_1) => External[0].test(unique_0) || check_2(value[unique_0]),
-    ) &&
-    check_3(value.code) &&
-    check_4(value.runtimeId) &&
-    check_4(value.runtimeLabel) &&
-    check_5(value.reason) &&
-    (value.recovery === void 0 || !("recovery" in value) || check_12(value.recovery)),
-  check_2 = (value) => !1,
-  check_3 = (value) => typeof value == "string" && value === "AGENT_RUNTIME_RESTRICTED",
-  check_4 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)),
-  check_5 = (value) =>
-    check_6(value) ||
-    check_7(value) ||
-    check_8(value) ||
-    check_9(value) ||
-    check_10(value) ||
-    check_11(value),
-  check_6 = (value) => typeof value == "string" && value === "sandbox-required",
-  check_7 = (value) => typeof value == "string" && value === "sandbox",
-  check_8 = (value) => typeof value == "string" && value === "workspace-only",
-  check_9 = (value) => typeof value == "string" && value === "permission-mode",
-  check_10 = (value) => typeof value == "string" && value === "remote-execution",
-  check_11 = (value) => typeof value == "string" && value === "tool-policy",
-  check_12 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "action" in value &&
-    "sessionId" in value &&
-    "expectedPermissionMode" in value &&
-    "expectedSandboxMode" in value &&
-    "expectedNativeRuntimeConsent" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_2, unique_3) => External[1].test(unique_2) || check_2(value[unique_2]),
-    ) &&
-    check_13(value.action) &&
-    check_4(value.sessionId) &&
-    (value.lifecycleRevision === void 0 ||
-      !("lifecycleRevision" in value) ||
-      check_14(value.lifecycleRevision)) &&
-    check_15(value.expectedPermissionMode) &&
-    check_22(value.expectedSandboxMode) &&
-    check_24(value.expectedNativeRuntimeConsent),
-  check_13 = (value) => typeof value == "string" && value === "use-native-permissions",
-  check_14 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)),
-  check_15 = (value) => check_16(value) || check_21(value),
-  check_16 = (value) => check_17(value) || check_18(value) || check_19(value) || check_20(value),
-  check_17 = (value) => typeof value == "string" && value === "read-only",
-  check_18 = (value) => typeof value == "string" && value === "guarded",
-  check_19 = (value) => typeof value == "string" && value === "workspace",
-  check_20 = (value) => typeof value == "string" && value === "full",
-  check_21 = (value) => value === null,
-  check_22 = (value) => check_23(value) || check_21(value),
-  check_23 = (value) => typeof value == "string" && value === "off",
-  check_24 = (value) => check_4(value) || check_21(value),
-  check_25 = (value) => check_26(value),
-  check_26 = (value) => check_27(value) || check_33(value) || check_35(value),
-  check_27 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "sessionId" in value &&
-    "goalId" in value &&
-    "operationId" in value &&
-    "issuedAtMs" in value &&
-    "action" in value &&
-    "objective" in value &&
-    "expectedGoalUpdatedAt" in value &&
-    "expectedRunId" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_4, unique_5) => External[2].test(unique_4) || check_2(value[unique_4]),
-    ) &&
-    check_4(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_14(value.agentId)) &&
-    check_4(value.sessionId) &&
-    check_4(value.goalId) &&
-    check_28(value.operationId) &&
-    check_29(value.issuedAtMs) &&
-    check_30(value.action) &&
-    check_31(value.objective) &&
-    check_32(value.expectedGoalUpdatedAt) &&
-    check_4(value.expectedRunId),
-  check_28 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 128 || (value.length <= 256 && CodePointCount(value) <= 128)),
-  check_29 = (value) =>
-    Number.isInteger(value) &&
-    (!(Number.isFinite(value) || typeof value == "bigint") || value >= 0),
-  check_30 = (value) => typeof value == "string" && value === "replace",
-  check_31 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 16e3 || (value.length <= 32e3 && CodePointCount(value) <= 16e3)),
-  check_32 = (value) => Number.isFinite(value),
-  check_33 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "goalId" in value &&
-    "operationId" in value &&
-    "issuedAtMs" in value &&
-    "action" in value &&
-    "objective" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_6, unique_7) => External[3].test(unique_6) || check_2(value[unique_6]),
-    ) &&
-    check_4(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_14(value.agentId)) &&
-    (value.sessionId === void 0 || !("sessionId" in value) || check_14(value.sessionId)) &&
-    check_4(value.goalId) &&
-    check_28(value.operationId) &&
-    check_29(value.issuedAtMs) &&
-    check_34(value.action) &&
-    check_31(value.objective),
-  check_34 = (value) => typeof value == "string" && value === "edit",
-  check_35 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "goalId" in value &&
-    "operationId" in value &&
-    "issuedAtMs" in value &&
-    "action" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_8, unique_9) => External[4].test(unique_8) || check_2(value[unique_8]),
-    ) &&
-    check_4(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_14(value.agentId)) &&
-    (value.sessionId === void 0 || !("sessionId" in value) || check_14(value.sessionId)) &&
-    check_4(value.goalId) &&
-    check_28(value.operationId) &&
-    check_29(value.issuedAtMs) &&
-    check_36(value.action) &&
-    (value.note === void 0 || !("note" in value) || check_41(value.note)),
-  check_36 = (value) => check_37(value) || check_38(value) || check_39(value) || check_40(value),
-  check_37 = (value) => typeof value == "string" && value === "pause",
-  check_38 = (value) => typeof value == "string" && value === "resume",
-  check_39 = (value) => typeof value == "string" && value === "complete",
-  check_40 = (value) => typeof value == "string" && value === "block",
-  check_41 = (value) =>
-    typeof value == "string" &&
-    (value.length <= 2e3 || (value.length <= 4e3 && CodePointCount(value) <= 2e3)),
-  check_42 = (value) => check_43(value),
-  check_43 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "goalId" in value &&
-    "operationId" in value &&
-    "issuedAtMs" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_10, unique_11) => External[5].test(unique_10) || check_2(value[unique_10]),
-    ) &&
-    check_4(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_14(value.agentId)) &&
-    (value.sessionId === void 0 || !("sessionId" in value) || check_14(value.sessionId)) &&
-    check_4(value.goalId) &&
-    check_28(value.operationId) &&
-    check_29(value.issuedAtMs),
-  check_44 = (value) => check_45(value),
-  check_45 = (value) => typeof value == "string" && value === "empty",
-  check_46 = (value) => check_47(value),
-  check_47 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "deviceId" in value &&
-    "path" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_12, unique_13) => External[6].test(unique_12) || check_2(value[unique_12]),
-    ) &&
-    check_4(value.deviceId) &&
-    check_48(value.path),
-  check_48 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 4096 || (value.length <= 8192 && CodePointCount(value) <= 4096)),
-  check_49 = (value) => check_50(value),
-  check_50 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "url" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_14, unique_15) => External[7].test(unique_14) || check_2(value[unique_14]),
-    ) &&
-    check_51(value.url) &&
-    (value.ref === void 0 || !("ref" in value) || check_52(value.ref)),
-  check_51 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 2048 || (value.length <= 4096 && CodePointCount(value) <= 2048)),
-  check_52 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 1024 || (value.length <= 2048 && CodePointCount(value) <= 1024)),
-  check_53 = (value) => check_54(value),
-  check_54 = (value) => check_55(value) || check_56(value) || check_57(value),
-  check_55 = (value) => typeof value == "boolean",
-  check_56 = (value) => typeof value == "string" && value === "auto",
-  check_57 = (value) => typeof value == "string" && value === "ultrafast",
-  check_58 = (value) => check_59(value),
-  check_59 = (value) => check_60(value) || check_21(value),
-  check_60 = (value) => check_61(value) || check_62(value) || check_63(value),
-  check_61 = (value) => typeof value == "string" && value === "standard",
-  check_62 = (value) => typeof value == "string" && value === "daybreak_blue",
-  check_63 = (value) => typeof value == "string" && value === "daybreak_red",
-  check_64 = (value) => check_65(value),
-  check_65 = (value) =>
-    typeof value == "string" &&
-    (value.length <= 1e3 || (value.length <= 2e3 && CodePointCount(value) <= 1e3)),
-  check_66 = (value) => check_16(value),
-  check_67 = (value) => check_68(value),
-  check_68 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_16, unique_17) => External[8].test(unique_16) || check_2(value[unique_16]),
-    ) &&
-    (value.mcpServers === void 0 || !("mcpServers" in value) || check_69(value.mcpServers)) &&
-    (value.mcpToolsDeny === void 0 || !("mcpToolsDeny" in value) || check_70(value.mcpToolsDeny)) &&
-    (value.skills === void 0 || !("skills" in value) || check_69(value.skills)) &&
-    (value.webSearch === void 0 || !("webSearch" in value) || check_72(value.webSearch)),
-  check_69 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.entries(value).every(
-      ([unique_18, unique_19], _) => !External[9].test(unique_18) || check_55(unique_19),
-    ),
-  check_70 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.entries(value).every(
-      ([unique_20, unique_21], _) => !External[10].test(unique_20) || check_71(unique_21),
-    ),
-  check_71 = (value) =>
-    Array.isArray(value) && value.every((unique_22, index) => check_4(unique_22)),
-  check_72 = (value) => typeof value == "boolean",
-  check_73 = (value) => check_74(value),
-  check_74 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "changeId" in value &&
-    "voiceSessionId" in value &&
-    "sessionKey" in value &&
-    "voice" in value &&
-    "phase" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_23, unique_24) => External[11].test(unique_23) || check_2(value[unique_23]),
-    ) &&
-    check_4(value.changeId) &&
-    check_4(value.voiceSessionId) &&
-    check_4(value.sessionKey) &&
-    check_4(value.voice) &&
-    check_75(value.phase),
-  check_75 = (value) => check_76(value) || check_77(value),
-  check_76 = (value) => typeof value == "string" && value === "requested",
-  check_77 = (value) => typeof value == "string" && value === "cancelled",
-  check_78 = (value) => check_79(value),
-  check_79 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    (value.source === void 0 || !("source" in value) || check_80(value.source)) &&
-    (value.root === void 0 || !("root" in value) || check_14(value.root)),
-  check_80 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "workspaceId" in value &&
-    "root" in value &&
-    "fileRoot" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_25, unique_26) => External[12].test(unique_25) || check_2(value[unique_25]),
-    ) &&
-    check_4(value.workspaceId) &&
-    check_24(value.root) &&
-    check_24(value.fileRoot),
-  isAgentRuntimeRestrictionErrorDetails = (value) => check_0(value),
-  isSessionsGoalUpdateParams = (value) => check_25(value),
-  isSessionsGoalClearParams = (value) => check_42(value),
-  isSessionWorktreeSource = (value) => check_44(value),
-  isSessionDeviceFolder = (value) => check_46(value),
-  isSessionRepository = (value) => check_49(value),
-  isSessionFastMode = (value) => check_53(value),
-  isSessionCyberAccessProgram = (value) => check_58(value),
-  isSessionTitleSource = (value) => check_64(value),
-  isSessionPermissionMode = (value) => check_66(value),
-  isSessionToolOverrides = (value) => check_67(value),
-  isTalkVoiceChangeEvent = (value) => check_73(value),
-  isSessionFileReadMetadata = (value) => check_78(value);
+var capture_300842b73de92907 = /(^code$|^runtimeId$|^runtimeLabel$|^reason$|^recovery$)/u;
+var capture_308bace0bfa366e9 =
+  /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$)/u;
+var capture_43ae214a3b653e02 = /(^url$|^ref$)/u;
+var capture_4c5c377c38c99467 = /(^workspaceId$|^root$|^fileRoot$)/u;
+var capture_6dc2b308fcb1fa5c = /(^mcpServers$|^mcpToolsDeny$|^skills$|^webSearch$)/u;
+var capture_89f6e18e20d8f75e = /^.*$/u;
+var capture_9798c01fc5eb5585 = /(^changeId$|^voiceSessionId$|^sessionKey$|^voice$|^phase$)/u;
+var capture_994ed03a2e659f82 =
+  /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^note$)/u;
+var capture_9d17d5a870b896c2 =
+  /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^objective$|^expectedGoalUpdatedAt$|^expectedRunId$)/u;
+var capture_b5b5fd296fad5960 =
+  /(^action$|^sessionId$|^lifecycleRevision$|^expectedPermissionMode$|^expectedSandboxMode$|^expectedNativeRuntimeConsent$)/u;
+var capture_b8a6a3c1b865a16e =
+  /(^sessionKey$|^agentId$|^sessionId$|^goalId$|^operationId$|^issuedAtMs$|^action$|^objective$)/u;
+var capture_cb66644b8abace56 = /(^deviceId$|^path$)/u;
+var check_ref_x_20127301474f2be3 = (value) => check_x_20127301474f2be3(value);
+var check_ref_x_27a6f335e64ded95 = (value) => check_x_27a6f335e64ded95(value);
+var check_ref_x_2b4427190b51fe4a = (value) => check_x_2b4427190b51fe4a(value);
+var check_ref_x_39e097ece32fad35 = (value) => check_x_39e097ece32fad35(value);
+var check_ref_x_3c593d1099ae35b9 = (value) => check_x_3c593d1099ae35b9(value);
+var check_ref_x_40bae718362d5f4f = (value) => check_x_40bae718362d5f4f(value);
+var check_ref_x_563085fc5a11e97b = (value) => check_x_563085fc5a11e97b(value);
+var check_ref_x_646518e5d59f2485 = (value) => check_x_646518e5d59f2485(value);
+var check_ref_x_77bd0fd844c0ec49 = (value) => check_x_77bd0fd844c0ec49(value);
+var check_ref_x_d6d03daf9a01c7d4 = (value) => check_x_d6d03daf9a01c7d4(value);
+var check_ref_x_dbc791465bc36ab4 = (value) => check_x_dbc791465bc36ab4(value);
+var check_ref_x_e6a3b2c012c8b384 = (value) => check_x_e6a3b2c012c8b384(value);
+var check_ref_x_ead9b8950d85b01d = (value) => check_x_ead9b8950d85b01d(value);
+var check_x_044a156910d4524a = (value) =>
+  typeof value === "string" &&
+  (value.length <= 2e3 || (value.length <= 4e3 && CodePointCount(value) <= 2e3));
+var check_x_04fb4ccfed6d7ff9 = (value) => typeof value === "string" && value === "auto";
+var check_x_08395407b4f1363f = (value) => false;
+var check_x_1134c8e45d46094d = (value) =>
+  Array.isArray(value) && value.every((local_0, index) => check_x_52c4ef8f877cd4d7(local_0));
+var check_x_14d83638ac4bf5bc = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 2048 || (value.length <= 4096 && CodePointCount(value) <= 2048));
+var check_x_1b285a86ce1726d6 = (value) => typeof value === "string" && value === "replace";
+var check_x_20127301474f2be3 = (value) =>
+  check_x_b77d3a237dc12f21(value) ||
+  check_x_e936a522cccc83eb(value) ||
+  check_x_425bf3a12c04e86a(value);
+var check_x_27a6f335e64ded95 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "goalId" in value &&
+  "operationId" in value &&
+  "issuedAtMs" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_308bace0bfa366e9.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  (value.sessionId === void 0 ||
+    !("sessionId" in value) ||
+    check_x_509b97d13487254e(value.sessionId)) &&
+  check_x_52c4ef8f877cd4d7(value.goalId) &&
+  check_x_327553834462ba7c(value.operationId) &&
+  check_x_5a2f5873972b9702(value.issuedAtMs);
+var check_x_2b4427190b51fe4a = (value) =>
+  check_x_74547b0525c7db8d(value) ||
+  check_x_04fb4ccfed6d7ff9(value) ||
+  check_x_669796c75281bf5e(value);
+var check_x_2dc9761b8e58d2a6 = (value) => typeof value === "string" && value === "requested";
+var check_x_2f41a311ce5968e4 = (value) =>
+  check_x_f01a1d2f8f0d7b01(value) ||
+  check_x_a0ccd78ad12a5891(value) ||
+  check_x_b7a5afb89d56c9f8(value) ||
+  check_x_a10b30e4880da12f(value) ||
+  check_x_d6b7be891b41acc3(value) ||
+  check_x_c940011ac49bbe01(value);
+var check_x_304dad83174fc12d = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.entries(value).every(
+    ([local_0, local_1], _) =>
+      !capture_89f6e18e20d8f75e.test(local_0) || check_x_74547b0525c7db8d(local_1),
+  );
+var check_x_327553834462ba7c = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 128 || (value.length <= 256 && CodePointCount(value) <= 128));
+var check_x_39e097ece32fad35 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "changeId" in value &&
+  "voiceSessionId" in value &&
+  "sessionKey" in value &&
+  "voice" in value &&
+  "phase" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_9798c01fc5eb5585.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.changeId) &&
+  check_x_52c4ef8f877cd4d7(value.voiceSessionId) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  check_x_52c4ef8f877cd4d7(value.voice) &&
+  check_x_a62afd8abca3c607(value.phase);
+var check_x_3c593d1099ae35b9 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  (value.source === void 0 || !("source" in value) || check_x_a0873081a5572b05(value.source)) &&
+  (value.root === void 0 || !("root" in value) || check_x_509b97d13487254e(value.root));
+var check_x_3d46ef2219672848 = (value) => typeof value === "string" && value === "pause";
+var check_x_40bae718362d5f4f = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "code" in value &&
+  "runtimeId" in value &&
+  "runtimeLabel" in value &&
+  "reason" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_300842b73de92907.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_f8fe77115593ad14(value.code) &&
+  check_x_52c4ef8f877cd4d7(value.runtimeId) &&
+  check_x_52c4ef8f877cd4d7(value.runtimeLabel) &&
+  check_x_2f41a311ce5968e4(value.reason) &&
+  (value.recovery === void 0 || !("recovery" in value) || check_x_dfdcd795f35b82e5(value.recovery));
+var check_x_425bf3a12c04e86a = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "goalId" in value &&
+  "operationId" in value &&
+  "issuedAtMs" in value &&
+  "action" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_994ed03a2e659f82.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  (value.sessionId === void 0 ||
+    !("sessionId" in value) ||
+    check_x_509b97d13487254e(value.sessionId)) &&
+  check_x_52c4ef8f877cd4d7(value.goalId) &&
+  check_x_327553834462ba7c(value.operationId) &&
+  check_x_5a2f5873972b9702(value.issuedAtMs) &&
+  check_x_46b86f971c64cde0(value.action) &&
+  (value.note === void 0 || !("note" in value) || check_x_044a156910d4524a(value.note));
+var check_x_464713f9a03b3ce7 = (value) => typeof value === "string" && value === "workspace";
+var check_x_46b86f971c64cde0 = (value) =>
+  check_x_3d46ef2219672848(value) ||
+  check_x_6f32e3ad25b11c05(value) ||
+  check_x_b5de172b6f765d89(value) ||
+  check_x_5298d0e1db6b055b(value);
+var check_x_4aa8fdb4102a23df = (value) => typeof value === "string" && value === "off";
+var check_x_4cb0b89e81013fe0 = (value) => typeof value === "string" && value === "daybreak_blue";
+var check_x_509b97d13487254e = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1));
+var check_x_5298d0e1db6b055b = (value) => typeof value === "string" && value === "block";
+var check_x_52c4ef8f877cd4d7 = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1));
+var check_x_5401b5ba336e123b = (value) => value === null;
+var check_x_563085fc5a11e97b = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_6dc2b308fcb1fa5c.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  (value.mcpServers === void 0 ||
+    !("mcpServers" in value) ||
+    check_x_304dad83174fc12d(value.mcpServers)) &&
+  (value.mcpToolsDeny === void 0 ||
+    !("mcpToolsDeny" in value) ||
+    check_x_eed635e8c862af07(value.mcpToolsDeny)) &&
+  (value.skills === void 0 || !("skills" in value) || check_x_304dad83174fc12d(value.skills)) &&
+  (value.webSearch === void 0 ||
+    !("webSearch" in value) ||
+    check_x_b3016763c61f82c4(value.webSearch));
+var check_x_5a2f5873972b9702 = (value) =>
+  Number.isInteger(value) && (!(Number.isFinite(value) || typeof value === "bigint") || value >= 0);
+var check_x_646518e5d59f2485 = (value) =>
+  check_x_9ca4644ed30a1dcf(value) ||
+  check_x_69ab02dbdcf2397a(value) ||
+  check_x_464713f9a03b3ce7(value) ||
+  check_x_8577435e5948731f(value);
+var check_x_669796c75281bf5e = (value) => typeof value === "string" && value === "ultrafast";
+var check_x_69ab02dbdcf2397a = (value) => typeof value === "string" && value === "guarded";
+var check_x_6f32e3ad25b11c05 = (value) => typeof value === "string" && value === "resume";
+var check_x_713fd1ec1bc816a9 = (value) =>
+  check_x_e32a71f6fae3c46f(value) ||
+  check_x_4cb0b89e81013fe0(value) ||
+  check_x_c32dff0a15974ba3(value);
+var check_x_74547b0525c7db8d = (value) => typeof value === "boolean";
+var check_x_77bd0fd844c0ec49 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "url" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_43ae214a3b653e02.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_14d83638ac4bf5bc(value.url) &&
+  (value.ref === void 0 || !("ref" in value) || check_x_d927400119150b9d(value.ref));
+var check_x_808d7511a64b0719 = (value) =>
+  check_x_4aa8fdb4102a23df(value) || check_x_5401b5ba336e123b(value);
+var check_x_831206e206131097 = (value) =>
+  check_x_646518e5d59f2485(value) || check_x_5401b5ba336e123b(value);
+var check_x_8577435e5948731f = (value) => typeof value === "string" && value === "full";
+var check_x_9c3e74a43a1c1521 = (value) =>
+  check_x_52c4ef8f877cd4d7(value) || check_x_5401b5ba336e123b(value);
+var check_x_9ca4644ed30a1dcf = (value) => typeof value === "string" && value === "read-only";
+var check_x_a0873081a5572b05 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "workspaceId" in value &&
+  "root" in value &&
+  "fileRoot" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_4c5c377c38c99467.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.workspaceId) &&
+  check_x_9c3e74a43a1c1521(value.root) &&
+  check_x_9c3e74a43a1c1521(value.fileRoot);
+var check_x_a0ccd78ad12a5891 = (value) => typeof value === "string" && value === "sandbox";
+var check_x_a10b30e4880da12f = (value) => typeof value === "string" && value === "permission-mode";
+var check_x_a62afd8abca3c607 = (value) =>
+  check_x_2dc9761b8e58d2a6(value) || check_x_d0b4a05d10b23735(value);
+var check_x_b2c2c67ec74a9f2f = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 16e3 || (value.length <= 32e3 && CodePointCount(value) <= 16e3));
+var check_x_b3016763c61f82c4 = (value) => typeof value === "boolean";
+var check_x_b5de172b6f765d89 = (value) => typeof value === "string" && value === "complete";
+var check_x_b77d3a237dc12f21 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "sessionId" in value &&
+  "goalId" in value &&
+  "operationId" in value &&
+  "issuedAtMs" in value &&
+  "action" in value &&
+  "objective" in value &&
+  "expectedGoalUpdatedAt" in value &&
+  "expectedRunId" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_9d17d5a870b896c2.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  check_x_52c4ef8f877cd4d7(value.sessionId) &&
+  check_x_52c4ef8f877cd4d7(value.goalId) &&
+  check_x_327553834462ba7c(value.operationId) &&
+  check_x_5a2f5873972b9702(value.issuedAtMs) &&
+  check_x_1b285a86ce1726d6(value.action) &&
+  check_x_b2c2c67ec74a9f2f(value.objective) &&
+  check_x_e4a245d4d1198843(value.expectedGoalUpdatedAt) &&
+  check_x_52c4ef8f877cd4d7(value.expectedRunId);
+var check_x_b7a5afb89d56c9f8 = (value) => typeof value === "string" && value === "workspace-only";
+var check_x_c32dff0a15974ba3 = (value) => typeof value === "string" && value === "daybreak_red";
+var check_x_c940011ac49bbe01 = (value) => typeof value === "string" && value === "tool-policy";
+var check_x_d0b4a05d10b23735 = (value) => typeof value === "string" && value === "cancelled";
+var check_x_d6b7be891b41acc3 = (value) => typeof value === "string" && value === "remote-execution";
+var check_x_d6d03daf9a01c7d4 = (value) =>
+  check_x_713fd1ec1bc816a9(value) || check_x_5401b5ba336e123b(value);
+var check_x_d927400119150b9d = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 1024 || (value.length <= 2048 && CodePointCount(value) <= 1024));
+var check_x_dbc791465bc36ab4 = (value) =>
+  typeof value === "string" &&
+  (value.length <= 1e3 || (value.length <= 2e3 && CodePointCount(value) <= 1e3));
+var check_x_dfdcd795f35b82e5 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "action" in value &&
+  "sessionId" in value &&
+  "expectedPermissionMode" in value &&
+  "expectedSandboxMode" in value &&
+  "expectedNativeRuntimeConsent" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_b5b5fd296fad5960.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_e8d4958fb0ae67d2(value.action) &&
+  check_x_52c4ef8f877cd4d7(value.sessionId) &&
+  (value.lifecycleRevision === void 0 ||
+    !("lifecycleRevision" in value) ||
+    check_x_509b97d13487254e(value.lifecycleRevision)) &&
+  check_x_831206e206131097(value.expectedPermissionMode) &&
+  check_x_808d7511a64b0719(value.expectedSandboxMode) &&
+  check_x_9c3e74a43a1c1521(value.expectedNativeRuntimeConsent);
+var check_x_e15ce8436db2b0ec = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 4096 || (value.length <= 8192 && CodePointCount(value) <= 4096));
+var check_x_e32a71f6fae3c46f = (value) => typeof value === "string" && value === "standard";
+var check_x_e4a245d4d1198843 = (value) => Number.isFinite(value);
+var check_x_e6a3b2c012c8b384 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "deviceId" in value &&
+  "path" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_cb66644b8abace56.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.deviceId) &&
+  check_x_e15ce8436db2b0ec(value.path);
+var check_x_e8d4958fb0ae67d2 = (value) =>
+  typeof value === "string" && value === "use-native-permissions";
+var check_x_e91a6fd6c38f1cf2 = (value) => typeof value === "string" && value === "edit";
+var check_x_e936a522cccc83eb = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "goalId" in value &&
+  "operationId" in value &&
+  "issuedAtMs" in value &&
+  "action" in value &&
+  "objective" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_b8a6a3c1b865a16e.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  (value.sessionId === void 0 ||
+    !("sessionId" in value) ||
+    check_x_509b97d13487254e(value.sessionId)) &&
+  check_x_52c4ef8f877cd4d7(value.goalId) &&
+  check_x_327553834462ba7c(value.operationId) &&
+  check_x_5a2f5873972b9702(value.issuedAtMs) &&
+  check_x_e91a6fd6c38f1cf2(value.action) &&
+  check_x_b2c2c67ec74a9f2f(value.objective);
+var check_x_ead9b8950d85b01d = (value) => typeof value === "string" && value === "empty";
+var check_x_eed635e8c862af07 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.entries(value).every(
+    ([local_0, local_1], _) =>
+      !capture_89f6e18e20d8f75e.test(local_0) || check_x_1134c8e45d46094d(local_1),
+  );
+var check_x_f01a1d2f8f0d7b01 = (value) => typeof value === "string" && value === "sandbox-required";
+var check_x_f8fe77115593ad14 = (value) =>
+  typeof value === "string" && value === "AGENT_RUNTIME_RESTRICTED";
+var isAgentRuntimeRestrictionErrorDetails = (value) => check_ref_x_40bae718362d5f4f(value);
+var isSessionCyberAccessProgram = (value) => check_ref_x_d6d03daf9a01c7d4(value);
+var isSessionDeviceFolder = (value) => check_ref_x_e6a3b2c012c8b384(value);
+var isSessionFastMode = (value) => check_ref_x_2b4427190b51fe4a(value);
+var isSessionFileReadMetadata = (value) => check_ref_x_3c593d1099ae35b9(value);
+var isSessionPermissionMode = (value) => check_ref_x_646518e5d59f2485(value);
+var isSessionRepository = (value) => check_ref_x_77bd0fd844c0ec49(value);
+var isSessionsGoalClearParams = (value) => check_ref_x_27a6f335e64ded95(value);
+var isSessionsGoalUpdateParams = (value) => check_ref_x_20127301474f2be3(value);
+var isSessionTitleSource = (value) => check_ref_x_dbc791465bc36ab4(value);
+var isSessionToolOverrides = (value) => check_ref_x_563085fc5a11e97b(value);
+var isSessionWorktreeSource = (value) => check_ref_x_ead9b8950d85b01d(value);
+var isTalkVoiceChangeEvent = (value) => check_ref_x_39e097ece32fad35(value);
 export {
   isAgentRuntimeRestrictionErrorDetails,
   isSessionCyberAccessProgram,

@@ -29,408 +29,479 @@ function CodePointCount(value) {
   let result = 0,
     index = 0,
     prev = 0;
-  for (; index < value.length;) {
-    let next = value.charCodeAt(index++) >> 10;
-    ((result += +(((prev << 8) | next) !== 13879)), (prev = next));
+  while (index < value.length) {
+    const next = value.charCodeAt(index++) >> 10;
+    result += +(((prev << 8) | next) !== 13879);
+    prev = next;
   }
   return result;
 }
-var External = [
-    /(^delegation$|^itemId$|^phase$|^kind$|^title$|^status$|^name$|^meta$|^commandBearing$|^toolCallId$|^unpairedCall$|^startedAt$|^endedAt$|^error$|^summary$|^progressText$|^suppressChannelProgress$|^hideFromChannelProgress$|^approvalId$|^approvalSlug$)/u,
-    /(^runId$|^childSessionKey$|^label$|^groupId$|^runtimeMs$|^status$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^lifecycleRevision$|^runId$|^revision$|^updatedAt$|^headline$|^assessment$|^health$|^planProgress$)/u,
-    /(^completed$|^total$)/u,
-    /(^sessionKey$|^agentId$|^runId$|^text$)/u,
-    /(^sessionKey$|^agentId$|^sessionId$|^messageId$|^emoji$|^action$|^actor$|^reactions$)/u,
-    /(^type$|^id$|^label$|^avatarUrl$|^identity$)/u,
-    /(^type$|^id$)/u,
-    /(^type$|^id$)/u,
-    /(^type$|^pluginId$|^domain$|^idKind$|^id$)/u,
-    /(^type$|^pluginId$|^accountId$|^senderKind$|^id$)/u,
-    /(^type$|^actorType$|^source$|^id$)/u,
-    /(^emoji$|^count$|^identities$)/u,
-    /(^id$|^label$)/u,
-  ],
-  check_0 = (value) => check_1(value),
-  check_1 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "itemId" in value &&
-    "phase" in value &&
-    "kind" in value &&
-    "title" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_0, unique_1) => External[0].test(unique_0) || check_2(value[unique_0]),
-    ) &&
-    (value.delegation === void 0 || !("delegation" in value) || check_3(value.delegation)) &&
-    check_15(value.itemId) &&
-    check_16(value.phase) &&
-    check_20(value.kind) &&
-    check_20(value.title) &&
-    (value.status === void 0 || !("status" in value) || check_21(value.status)) &&
-    (value.name === void 0 || !("name" in value) || check_26(value.name)) &&
-    (value.meta === void 0 || !("meta" in value) || check_26(value.meta)) &&
-    (value.commandBearing === void 0 ||
-      !("commandBearing" in value) ||
-      check_27(value.commandBearing)) &&
-    (value.toolCallId === void 0 || !("toolCallId" in value) || check_26(value.toolCallId)) &&
-    (value.unpairedCall === void 0 || !("unpairedCall" in value) || check_27(value.unpairedCall)) &&
-    (value.startedAt === void 0 || !("startedAt" in value) || check_28(value.startedAt)) &&
-    (value.endedAt === void 0 || !("endedAt" in value) || check_28(value.endedAt)) &&
-    (value.error === void 0 || !("error" in value) || check_26(value.error)) &&
-    (value.summary === void 0 || !("summary" in value) || check_26(value.summary)) &&
-    (value.progressText === void 0 || !("progressText" in value) || check_26(value.progressText)) &&
-    (value.suppressChannelProgress === void 0 ||
-      !("suppressChannelProgress" in value) ||
-      check_27(value.suppressChannelProgress)) &&
-    (value.hideFromChannelProgress === void 0 ||
-      !("hideFromChannelProgress" in value) ||
-      check_27(value.hideFromChannelProgress)) &&
-    (value.approvalId === void 0 || !("approvalId" in value) || check_26(value.approvalId)) &&
-    (value.approvalSlug === void 0 || !("approvalSlug" in value) || check_26(value.approvalSlug)),
-  check_2 = (value) => !1,
-  check_3 = (value) =>
-    Array.isArray(value) &&
-    value.every((unique_2, index) => check_4(unique_2)) &&
-    value.length <= 32,
-  check_4 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "runId" in value &&
-    "childSessionKey" in value &&
-    "status" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_3, unique_4) => External[1].test(unique_3) || check_2(value[unique_3]),
-    ) &&
-    check_5(value.runId) &&
-    check_6(value.childSessionKey) &&
-    (value.label === void 0 || !("label" in value) || check_7(value.label)) &&
-    (value.groupId === void 0 || !("groupId" in value) || check_7(value.groupId)) &&
-    (value.runtimeMs === void 0 || !("runtimeMs" in value) || check_8(value.runtimeMs)) &&
-    check_9(value.status),
-  check_5 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 256 || (value.length <= 512 && CodePointCount(value) <= 256)),
-  check_6 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 1024 || (value.length <= 2048 && CodePointCount(value) <= 1024)),
-  check_7 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 512 || (value.length <= 1024 && CodePointCount(value) <= 512)),
-  check_8 = (value) => Number.isFinite(value) && value >= 0 && value <= 9007199254740991,
-  check_9 = (value) =>
-    check_10(value) || check_11(value) || check_12(value) || check_13(value) || check_14(value),
-  check_10 = (value) => typeof value == "string" && value === "accepted",
-  check_11 = (value) => typeof value == "string" && value === "done",
-  check_12 = (value) => typeof value == "string" && value === "failed",
-  check_13 = (value) => typeof value == "string" && value === "killed",
-  check_14 = (value) => typeof value == "string" && value === "timeout",
-  check_15 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)),
-  check_16 = (value) => check_17(value) || check_18(value) || check_19(value),
-  check_17 = (value) => typeof value == "string" && value === "start",
-  check_18 = (value) => typeof value == "string" && value === "update",
-  check_19 = (value) => typeof value == "string" && value === "end",
-  check_20 = (value) => typeof value == "string",
-  check_21 = (value) =>
-    check_22(value) || check_23(value) || check_12(value) || check_24(value) || check_25(value),
-  check_22 = (value) => typeof value == "string" && value === "running",
-  check_23 = (value) => typeof value == "string" && value === "completed",
-  check_24 = (value) => typeof value == "string" && value === "blocked",
-  check_25 = (value) => typeof value == "string" && value === "skipped",
-  check_26 = (value) => typeof value == "string",
-  check_27 = (value) => typeof value == "boolean",
-  check_28 = (value) => Number.isFinite(value),
-  check_29 = (value) => check_30(value),
-  check_30 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "revision" in value &&
-    "updatedAt" in value &&
-    "headline" in value &&
-    "health" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_5, unique_6) => External[2].test(unique_5) || check_2(value[unique_5]),
-    ) &&
-    check_15(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_31(value.agentId)) &&
-    (value.sessionId === void 0 || !("sessionId" in value) || check_31(value.sessionId)) &&
-    (value.lifecycleRevision === void 0 ||
-      !("lifecycleRevision" in value) ||
-      check_31(value.lifecycleRevision)) &&
-    (value.runId === void 0 || !("runId" in value) || check_31(value.runId)) &&
-    check_32(value.revision) &&
-    check_33(value.updatedAt) &&
-    check_34(value.headline) &&
-    (value.assessment === void 0 || !("assessment" in value) || check_35(value.assessment)) &&
-    check_36(value.health) &&
-    (value.planProgress === void 0 || !("planProgress" in value) || check_42(value.planProgress)),
-  check_31 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)),
-  check_32 = (value) =>
-    Number.isInteger(value) &&
-    (!(Number.isFinite(value) || typeof value == "bigint") || value >= 1),
-  check_33 = (value) =>
-    Number.isInteger(value) &&
-    (!(Number.isFinite(value) || typeof value == "bigint") || value >= 0),
-  check_34 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 120 || (value.length <= 240 && CodePointCount(value) <= 120)),
-  check_35 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 320 || (value.length <= 640 && CodePointCount(value) <= 320)),
-  check_36 = (value) =>
-    check_37(value) ||
-    check_38(value) ||
-    check_39(value) ||
-    check_40(value) ||
-    check_41(value) ||
-    check_11(value) ||
-    check_12(value),
-  check_37 = (value) => typeof value == "string" && value === "on-track",
-  check_38 = (value) => typeof value == "string" && value === "grinding",
-  check_39 = (value) => typeof value == "string" && value === "stuck",
-  check_40 = (value) => typeof value == "string" && value === "waiting-on-user",
-  check_41 = (value) => typeof value == "string" && value === "wrapping-up",
-  check_42 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "completed" in value &&
-    "total" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_7, unique_8) => External[3].test(unique_7) || check_2(value[unique_7]),
-    ) &&
-    check_33(value.completed) &&
-    check_33(value.total),
-  check_43 = (value) => check_44(value),
-  check_44 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "runId" in value &&
-    "text" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_9, unique_10) => External[4].test(unique_9) || check_2(value[unique_9]),
-    ) &&
-    check_15(value.sessionKey) &&
-    (value.agentId === void 0 || !("agentId" in value) || check_31(value.agentId)) &&
-    check_15(value.runId) &&
-    check_45(value.text),
-  check_45 = (value) =>
-    typeof value == "string" &&
-    (value.length <= 16384 || (value.length <= 32768 && CodePointCount(value) <= 16384)),
-  check_46 = (value) => check_47(value),
-  check_47 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "sessionKey" in value &&
-    "agentId" in value &&
-    "sessionId" in value &&
-    "messageId" in value &&
-    "emoji" in value &&
-    "action" in value &&
-    "actor" in value &&
-    "reactions" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_11, unique_12) => External[5].test(unique_11) || check_2(value[unique_11]),
-    ) &&
-    check_15(value.sessionKey) &&
-    check_15(value.agentId) &&
-    check_15(value.sessionId) &&
-    check_15(value.messageId) &&
-    check_48(value.emoji) &&
-    check_49(value.action) &&
-    check_52(value.actor) &&
-    check_73(value.reactions),
-  check_48 = (value) =>
-    typeof value == "string" &&
-    (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
-    (value.length <= 32 || (value.length <= 64 && CodePointCount(value) <= 32)),
-  check_49 = (value) => check_50(value) || check_51(value),
-  check_50 = (value) => typeof value == "string" && value === "added",
-  check_51 = (value) => typeof value == "string" && value === "removed",
-  check_52 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_13, unique_14) => External[6].test(unique_13) || check_2(value[unique_13]),
-    ) &&
-    check_53(value.type) &&
-    check_15(value.id) &&
-    (value.label === void 0 || !("label" in value) || check_31(value.label)) &&
-    (value.avatarUrl === void 0 || !("avatarUrl" in value) || check_31(value.avatarUrl)) &&
-    (value.identity === void 0 || !("identity" in value) || check_57(value.identity)),
-  check_53 = (value) => check_54(value) || check_55(value) || check_56(value),
-  check_54 = (value) => typeof value == "string" && value === "human",
-  check_55 = (value) => typeof value == "string" && value === "agent",
-  check_56 = (value) => typeof value == "string" && value === "system",
-  check_57 = (value) =>
-    check_58(value) || check_60(value) || check_61(value) || check_63(value) || check_70(value),
-  check_58 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_15, unique_16) => External[7].test(unique_15) || check_2(value[unique_15]),
-    ) &&
-    check_59(value.type) &&
-    check_15(value.id),
-  check_59 = (value) => typeof value == "string" && value === "profile",
-  check_60 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_17, unique_18) => External[8].test(unique_17) || check_2(value[unique_17]),
-    ) &&
-    check_55(value.type) &&
-    check_15(value.id),
-  check_61 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "pluginId" in value &&
-    "domain" in value &&
-    "idKind" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_19, unique_20) => External[9].test(unique_19) || check_2(value[unique_19]),
-    ) &&
-    check_62(value.type) &&
-    check_15(value.pluginId) &&
-    check_15(value.domain) &&
-    check_15(value.idKind) &&
-    check_15(value.id),
-  check_62 = (value) => typeof value == "string" && value === "remote",
-  check_63 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "pluginId" in value &&
-    "accountId" in value &&
-    "senderKind" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_21, unique_22) => External[10].test(unique_21) || check_2(value[unique_21]),
-    ) &&
-    check_64(value.type) &&
-    check_65(value.pluginId) &&
-    check_65(value.accountId) &&
-    check_67(value.senderKind) &&
-    check_15(value.id),
-  check_64 = (value) => typeof value == "string" && value === "observation",
-  check_65 = (value) => check_15(value) || check_66(value),
-  check_66 = (value) => value === null,
-  check_67 = (value) => check_54(value) || check_68(value) || check_69(value),
-  check_68 = (value) => typeof value == "string" && value === "bot",
-  check_69 = (value) => typeof value == "string" && value === "unknown",
-  check_70 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    "actorType" in value &&
-    "source" in value &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_23, unique_24) => External[11].test(unique_23) || check_2(value[unique_23]),
-    ) &&
-    check_71(value.type) &&
-    check_20(value.actorType) &&
-    check_72(value.source) &&
-    check_20(value.id),
-  check_71 = (value) => typeof value == "string" && value === "legacy",
-  check_72 = (value) => check_20(value) || check_66(value),
-  check_73 = (value) =>
-    Array.isArray(value) && value.every((unique_25, index) => check_74(unique_25)),
-  check_74 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "emoji" in value &&
-    "count" in value &&
-    "identities" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_26, unique_27) => External[12].test(unique_26) || check_2(value[unique_26]),
-    ) &&
-    check_48(value.emoji) &&
-    check_32(value.count) &&
-    check_75(value.identities),
-  check_75 = (value) =>
-    Array.isArray(value) &&
-    value.every((unique_28, index) => check_76(unique_28)) &&
-    value.length >= 1,
-  check_76 = (value) =>
-    typeof value == "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "id" in value &&
-    Object.getOwnPropertyNames(value).every(
-      (unique_29, unique_30) => External[13].test(unique_29) || check_2(value[unique_29]),
-    ) &&
-    check_15(value.id) &&
-    (value.label === void 0 || !("label" in value) || check_26(value.label)),
-  isAgentActivityItem = (value) => check_0(value),
-  isSessionObserverDigest = (value) => check_29(value),
-  isSessionNarrationEvent = (value) => check_43(value),
-  isSessionReactionEvent = (value) => check_46(value);
+var capture_1a3af167d2c9cfc7 = /(^type$|^id$|^label$|^avatarUrl$|^identity$)/u;
+var capture_417a8861c873f0a7 =
+  /(^sessionKey$|^agentId$|^sessionId$|^messageId$|^emoji$|^action$|^actor$|^reactions$)/u;
+var capture_4b468d9d952cbcdc = /(^type$|^pluginId$|^domain$|^idKind$|^id$)/u;
+var capture_525ff719affce3cf = /(^completed$|^total$)/u;
+var capture_798302320c798547 = /(^id$|^label$)/u;
+var capture_8a5028eaf24b1d66 = /(^type$|^actorType$|^source$|^id$)/u;
+var capture_967e241feb057ca4 = /(^type$|^id$)/u;
+var capture_9f8c7c55ff74417b =
+  /(^delegation$|^itemId$|^phase$|^kind$|^title$|^status$|^name$|^meta$|^commandBearing$|^toolCallId$|^unpairedCall$|^startedAt$|^endedAt$|^error$|^summary$|^progressText$|^suppressChannelProgress$|^hideFromChannelProgress$|^approvalId$|^approvalSlug$)/u;
+var capture_ac015de907e090d0 = /(^type$|^pluginId$|^accountId$|^senderKind$|^id$)/u;
+var capture_b3bd2597b7a3cfbb = /(^emoji$|^count$|^identities$)/u;
+var capture_da56f341d56d5857 = /(^sessionKey$|^agentId$|^runId$|^text$)/u;
+var capture_f7c656abe1b24bb9 =
+  /(^sessionKey$|^agentId$|^sessionId$|^lifecycleRevision$|^runId$|^revision$|^updatedAt$|^headline$|^assessment$|^health$|^planProgress$)/u;
+var capture_fba6b890233a4717 =
+  /(^runId$|^childSessionKey$|^label$|^groupId$|^runtimeMs$|^status$)/u;
+var check_ref_x_0cf8716d31750efd = (value) => check_x_0cf8716d31750efd(value);
+var check_ref_x_652ea8e66eca9bbc = (value) => check_x_652ea8e66eca9bbc(value);
+var check_ref_x_9219e0475d4c1088 = (value) => check_x_9219e0475d4c1088(value);
+var check_ref_x_f30cb710b3b55e68 = (value) => check_x_f30cb710b3b55e68(value);
+var check_x_01dcb5946606965a = (value) => typeof value === "string" && value === "skipped";
+var check_x_0260d89e43033a06 = (value) =>
+  check_x_174935fcc81c9353(value) ||
+  check_x_ea4f807736975447(value) ||
+  check_x_653c30d8c6598fe0(value);
+var check_x_051ee548907dc780 = (value) => typeof value === "string" && value === "observation";
+var check_x_08395407b4f1363f = (value) => false;
+var check_x_0cf8716d31750efd = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "runId" in value &&
+  "text" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_da56f341d56d5857.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  check_x_52c4ef8f877cd4d7(value.runId) &&
+  check_x_308f66ec2452ae22(value.text);
+var check_x_139c61beb999c818 = (value) => typeof value === "string" && value === "grinding";
+var check_x_1468cf012fb47789 = (value) =>
+  check_x_54daa738f4142f63(value) ||
+  check_x_ee610d9edcd2406e(value) ||
+  check_x_d9072462fc7af82f(value) ||
+  check_x_ff7c6328589f942b(value) ||
+  check_x_78bc7eaa4ac4f1f5(value);
+var check_x_174935fcc81c9353 = (value) => typeof value === "string" && value === "human";
+var check_x_1867125069ab4146 = (value) =>
+  check_x_a18ce059b7a8c8eb(value) || check_x_5401b5ba336e123b(value);
+var check_x_196a2a053746be7c = (value) =>
+  check_x_3839991d8655fb4f(value) ||
+  check_x_96fee364a24e06f5(value) ||
+  check_x_435212523f57070f(value) ||
+  check_x_e950d23a0c03a087(value) ||
+  check_x_3d46adb0d8c42b19(value);
+var check_x_2631a4827679852e = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 120 || (value.length <= 240 && CodePointCount(value) <= 120));
+var check_x_2a64ce2a0e5cf98b = (value) => typeof value === "string" && value === "system";
+var check_x_308f66ec2452ae22 = (value) =>
+  typeof value === "string" &&
+  (value.length <= 16384 || (value.length <= 32768 && CodePointCount(value) <= 16384));
+var check_x_3839991d8655fb4f = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_967e241feb057ca4.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_648f4b5bdbd9051f(value.type) &&
+  check_x_52c4ef8f877cd4d7(value.id);
+var check_x_39d09348a2e002f5 = (value) =>
+  check_x_e6340ec26e015691(value) ||
+  check_x_cc8e089f04b73df3(value) ||
+  check_x_d9072462fc7af82f(value) ||
+  check_x_63808441ada4b626(value) ||
+  check_x_01dcb5946606965a(value);
+var check_x_3c28cfaa6da97578 = (value) =>
+  check_x_9309751bf2ab6a6a(value) ||
+  check_x_c1d789f70c25af8b(value) ||
+  check_x_b265cefd047212df(value);
+var check_x_3d46adb0d8c42b19 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "actorType" in value &&
+  "source" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_8a5028eaf24b1d66.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_e8cec18b6bd54851(value.type) &&
+  check_x_a18ce059b7a8c8eb(value.actorType) &&
+  check_x_1867125069ab4146(value.source) &&
+  check_x_a18ce059b7a8c8eb(value.id);
+var check_x_413ecb0e88f554fc = (value) => typeof value === "string" && value === "wrapping-up";
+var check_x_435212523f57070f = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "pluginId" in value &&
+  "domain" in value &&
+  "idKind" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_4b468d9d952cbcdc.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_bb00fbd4ad31f5ec(value.type) &&
+  check_x_52c4ef8f877cd4d7(value.pluginId) &&
+  check_x_52c4ef8f877cd4d7(value.domain) &&
+  check_x_52c4ef8f877cd4d7(value.idKind) &&
+  check_x_52c4ef8f877cd4d7(value.id);
+var check_x_4671adcf55d4417f = (value) =>
+  Array.isArray(value) &&
+  value.every((local_0, index) => check_x_b1c72ca8df91a6c6(local_0)) &&
+  value.length <= 32;
+var check_x_4a5e1257a50b40b1 = (value) =>
+  Array.isArray(value) &&
+  value.every((local_0, index) => check_x_9c4a784c0915af11(local_0)) &&
+  value.length >= 1;
+var check_x_4df4d141a312367c = (value) =>
+  check_x_a397cdbc8495f958(value) || check_x_bd2b8b12a3afdb92(value);
+var check_x_509b97d13487254e = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1));
+var check_x_52c4ef8f877cd4d7 = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1));
+var check_x_535e324331cd05be = (value) =>
+  Number.isFinite(value) && value >= 0 && value <= 9007199254740991;
+var check_x_5401b5ba336e123b = (value) => value === null;
+var check_x_542f6bbaa12a2c8a = (value) => Number.isFinite(value);
+var check_x_54daa738f4142f63 = (value) => typeof value === "string" && value === "accepted";
+var check_x_56ce018d16079c65 = (value) =>
+  Number.isInteger(value) && (!(Number.isFinite(value) || typeof value === "bigint") || value >= 1);
+var check_x_5a2f5873972b9702 = (value) =>
+  Number.isInteger(value) && (!(Number.isFinite(value) || typeof value === "bigint") || value >= 0);
+var check_x_5d7a5d5da010c7cb = (value) =>
+  check_x_174935fcc81c9353(value) ||
+  check_x_afc043497284fe2b(value) ||
+  check_x_2a64ce2a0e5cf98b(value);
+var check_x_61845dfa26701c81 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "emoji" in value &&
+  "count" in value &&
+  "identities" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_b3bd2597b7a3cfbb.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_7c409c2422c1269c(value.emoji) &&
+  check_x_56ce018d16079c65(value.count) &&
+  check_x_4a5e1257a50b40b1(value.identities);
+var check_x_63808441ada4b626 = (value) => typeof value === "string" && value === "blocked";
+var check_x_648f4b5bdbd9051f = (value) => typeof value === "string" && value === "profile";
+var check_x_652ea8e66eca9bbc = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "revision" in value &&
+  "updatedAt" in value &&
+  "headline" in value &&
+  "health" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_f7c656abe1b24bb9.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  (value.agentId === void 0 || !("agentId" in value) || check_x_509b97d13487254e(value.agentId)) &&
+  (value.sessionId === void 0 ||
+    !("sessionId" in value) ||
+    check_x_509b97d13487254e(value.sessionId)) &&
+  (value.lifecycleRevision === void 0 ||
+    !("lifecycleRevision" in value) ||
+    check_x_509b97d13487254e(value.lifecycleRevision)) &&
+  (value.runId === void 0 || !("runId" in value) || check_x_509b97d13487254e(value.runId)) &&
+  check_x_56ce018d16079c65(value.revision) &&
+  check_x_5a2f5873972b9702(value.updatedAt) &&
+  check_x_2631a4827679852e(value.headline) &&
+  (value.assessment === void 0 ||
+    !("assessment" in value) ||
+    check_x_708714b67f0cb651(value.assessment)) &&
+  check_x_871b78233881f557(value.health) &&
+  (value.planProgress === void 0 ||
+    !("planProgress" in value) ||
+    check_x_e5e352de16931fe5(value.planProgress));
+var check_x_653c30d8c6598fe0 = (value) => typeof value === "string" && value === "unknown";
+var check_x_6d5c39f0b97fa33e = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_1a3af167d2c9cfc7.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_5d7a5d5da010c7cb(value.type) &&
+  check_x_52c4ef8f877cd4d7(value.id) &&
+  (value.label === void 0 || !("label" in value) || check_x_509b97d13487254e(value.label)) &&
+  (value.avatarUrl === void 0 ||
+    !("avatarUrl" in value) ||
+    check_x_509b97d13487254e(value.avatarUrl)) &&
+  (value.identity === void 0 || !("identity" in value) || check_x_196a2a053746be7c(value.identity));
+var check_x_708714b67f0cb651 = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 320 || (value.length <= 640 && CodePointCount(value) <= 320));
+var check_x_78bc7eaa4ac4f1f5 = (value) => typeof value === "string" && value === "timeout";
+var check_x_7c409c2422c1269c = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 32 || (value.length <= 64 && CodePointCount(value) <= 32));
+var check_x_871b78233881f557 = (value) =>
+  check_x_dbc8207764fea2c5(value) ||
+  check_x_139c61beb999c818(value) ||
+  check_x_eabfeef1fbfe2a4a(value) ||
+  check_x_9cc7708e8f129d03(value) ||
+  check_x_413ecb0e88f554fc(value) ||
+  check_x_ee610d9edcd2406e(value) ||
+  check_x_d9072462fc7af82f(value);
+var check_x_9219e0475d4c1088 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "itemId" in value &&
+  "phase" in value &&
+  "kind" in value &&
+  "title" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_9f8c7c55ff74417b.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  (value.delegation === void 0 ||
+    !("delegation" in value) ||
+    check_x_4671adcf55d4417f(value.delegation)) &&
+  check_x_52c4ef8f877cd4d7(value.itemId) &&
+  check_x_3c28cfaa6da97578(value.phase) &&
+  check_x_a18ce059b7a8c8eb(value.kind) &&
+  check_x_a18ce059b7a8c8eb(value.title) &&
+  (value.status === void 0 || !("status" in value) || check_x_39d09348a2e002f5(value.status)) &&
+  (value.name === void 0 || !("name" in value) || check_x_9e12d29a410aa482(value.name)) &&
+  (value.meta === void 0 || !("meta" in value) || check_x_9e12d29a410aa482(value.meta)) &&
+  (value.commandBearing === void 0 ||
+    !("commandBearing" in value) ||
+    check_x_b3016763c61f82c4(value.commandBearing)) &&
+  (value.toolCallId === void 0 ||
+    !("toolCallId" in value) ||
+    check_x_9e12d29a410aa482(value.toolCallId)) &&
+  (value.unpairedCall === void 0 ||
+    !("unpairedCall" in value) ||
+    check_x_b3016763c61f82c4(value.unpairedCall)) &&
+  (value.startedAt === void 0 ||
+    !("startedAt" in value) ||
+    check_x_542f6bbaa12a2c8a(value.startedAt)) &&
+  (value.endedAt === void 0 || !("endedAt" in value) || check_x_542f6bbaa12a2c8a(value.endedAt)) &&
+  (value.error === void 0 || !("error" in value) || check_x_9e12d29a410aa482(value.error)) &&
+  (value.summary === void 0 || !("summary" in value) || check_x_9e12d29a410aa482(value.summary)) &&
+  (value.progressText === void 0 ||
+    !("progressText" in value) ||
+    check_x_9e12d29a410aa482(value.progressText)) &&
+  (value.suppressChannelProgress === void 0 ||
+    !("suppressChannelProgress" in value) ||
+    check_x_b3016763c61f82c4(value.suppressChannelProgress)) &&
+  (value.hideFromChannelProgress === void 0 ||
+    !("hideFromChannelProgress" in value) ||
+    check_x_b3016763c61f82c4(value.hideFromChannelProgress)) &&
+  (value.approvalId === void 0 ||
+    !("approvalId" in value) ||
+    check_x_9e12d29a410aa482(value.approvalId)) &&
+  (value.approvalSlug === void 0 ||
+    !("approvalSlug" in value) ||
+    check_x_9e12d29a410aa482(value.approvalSlug));
+var check_x_9309751bf2ab6a6a = (value) => typeof value === "string" && value === "start";
+var check_x_96fee364a24e06f5 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_967e241feb057ca4.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_afc043497284fe2b(value.type) &&
+  check_x_52c4ef8f877cd4d7(value.id);
+var check_x_98cadf16c6366b0c = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 1024 || (value.length <= 2048 && CodePointCount(value) <= 1024));
+var check_x_9c3e74a43a1c1521 = (value) =>
+  check_x_52c4ef8f877cd4d7(value) || check_x_5401b5ba336e123b(value);
+var check_x_9c4a784c0915af11 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_798302320c798547.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.id) &&
+  (value.label === void 0 || !("label" in value) || check_x_9e12d29a410aa482(value.label));
+var check_x_9cc7708e8f129d03 = (value) => typeof value === "string" && value === "waiting-on-user";
+var check_x_9e12d29a410aa482 = (value) => typeof value === "string";
+var check_x_a18ce059b7a8c8eb = (value) => typeof value === "string";
+var check_x_a397cdbc8495f958 = (value) => typeof value === "string" && value === "added";
+var check_x_afc043497284fe2b = (value) => typeof value === "string" && value === "agent";
+var check_x_b1c72ca8df91a6c6 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "runId" in value &&
+  "childSessionKey" in value &&
+  "status" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_fba6b890233a4717.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_e5190feca24326ac(value.runId) &&
+  check_x_98cadf16c6366b0c(value.childSessionKey) &&
+  (value.label === void 0 || !("label" in value) || check_x_f221f2a15faa27cd(value.label)) &&
+  (value.groupId === void 0 || !("groupId" in value) || check_x_f221f2a15faa27cd(value.groupId)) &&
+  (value.runtimeMs === void 0 ||
+    !("runtimeMs" in value) ||
+    check_x_535e324331cd05be(value.runtimeMs)) &&
+  check_x_1468cf012fb47789(value.status);
+var check_x_b265cefd047212df = (value) => typeof value === "string" && value === "end";
+var check_x_b3016763c61f82c4 = (value) => typeof value === "boolean";
+var check_x_bb00fbd4ad31f5ec = (value) => typeof value === "string" && value === "remote";
+var check_x_bd2b8b12a3afdb92 = (value) => typeof value === "string" && value === "removed";
+var check_x_c1d789f70c25af8b = (value) => typeof value === "string" && value === "update";
+var check_x_cc8e089f04b73df3 = (value) => typeof value === "string" && value === "completed";
+var check_x_d12cdf7b55055513 = (value) =>
+  Array.isArray(value) && value.every((local_0, index) => check_x_61845dfa26701c81(local_0));
+var check_x_d9072462fc7af82f = (value) => typeof value === "string" && value === "failed";
+var check_x_dbc8207764fea2c5 = (value) => typeof value === "string" && value === "on-track";
+var check_x_e5190feca24326ac = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 256 || (value.length <= 512 && CodePointCount(value) <= 256));
+var check_x_e5e352de16931fe5 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "completed" in value &&
+  "total" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_525ff719affce3cf.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_5a2f5873972b9702(value.completed) &&
+  check_x_5a2f5873972b9702(value.total);
+var check_x_e6340ec26e015691 = (value) => typeof value === "string" && value === "running";
+var check_x_e8cec18b6bd54851 = (value) => typeof value === "string" && value === "legacy";
+var check_x_e950d23a0c03a087 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "type" in value &&
+  "pluginId" in value &&
+  "accountId" in value &&
+  "senderKind" in value &&
+  "id" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_ac015de907e090d0.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_051ee548907dc780(value.type) &&
+  check_x_9c3e74a43a1c1521(value.pluginId) &&
+  check_x_9c3e74a43a1c1521(value.accountId) &&
+  check_x_0260d89e43033a06(value.senderKind) &&
+  check_x_52c4ef8f877cd4d7(value.id);
+var check_x_ea4f807736975447 = (value) => typeof value === "string" && value === "bot";
+var check_x_eabfeef1fbfe2a4a = (value) => typeof value === "string" && value === "stuck";
+var check_x_ee610d9edcd2406e = (value) => typeof value === "string" && value === "done";
+var check_x_f221f2a15faa27cd = (value) =>
+  typeof value === "string" &&
+  (value.length >= 2 || (value.length >= 1 && CodePointCount(value) >= 1)) &&
+  (value.length <= 512 || (value.length <= 1024 && CodePointCount(value) <= 512));
+var check_x_f30cb710b3b55e68 = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  "sessionKey" in value &&
+  "agentId" in value &&
+  "sessionId" in value &&
+  "messageId" in value &&
+  "emoji" in value &&
+  "action" in value &&
+  "actor" in value &&
+  "reactions" in value &&
+  Object.getOwnPropertyNames(value).every(
+    (local_0, local_1) =>
+      capture_417a8861c873f0a7.test(local_0) || check_x_08395407b4f1363f(value[local_0]),
+  ) &&
+  check_x_52c4ef8f877cd4d7(value.sessionKey) &&
+  check_x_52c4ef8f877cd4d7(value.agentId) &&
+  check_x_52c4ef8f877cd4d7(value.sessionId) &&
+  check_x_52c4ef8f877cd4d7(value.messageId) &&
+  check_x_7c409c2422c1269c(value.emoji) &&
+  check_x_4df4d141a312367c(value.action) &&
+  check_x_6d5c39f0b97fa33e(value.actor) &&
+  check_x_d12cdf7b55055513(value.reactions);
+var check_x_ff7c6328589f942b = (value) => typeof value === "string" && value === "killed";
+var isAgentActivityItem = (value) => check_ref_x_9219e0475d4c1088(value);
+var isSessionNarrationEvent = (value) => check_ref_x_0cf8716d31750efd(value);
+var isSessionObserverDigest = (value) => check_ref_x_652ea8e66eca9bbc(value);
+var isSessionReactionEvent = (value) => check_ref_x_f30cb710b3b55e68(value);
 var activityKeys = new Set([
-    "delegation",
-    "itemId",
-    "phase",
-    "kind",
-    "title",
-    "status",
-    "name",
-    "meta",
-    "commandBearing",
-    "toolCallId",
-    "unpairedCall",
-    "startedAt",
-    "endedAt",
-    "error",
-    "summary",
-    "progressText",
-    "suppressChannelProgress",
-    "hideFromChannelProgress",
-    "approvalId",
-    "approvalSlug",
-  ]),
-  delegationKeys = new Set(["runId", "childSessionKey", "label", "groupId", "runtimeMs", "status"]);
+  "delegation",
+  "itemId",
+  "phase",
+  "kind",
+  "title",
+  "status",
+  "name",
+  "meta",
+  "commandBearing",
+  "toolCallId",
+  "unpairedCall",
+  "startedAt",
+  "endedAt",
+  "error",
+  "summary",
+  "progressText",
+  "suppressChannelProgress",
+  "hideFromChannelProgress",
+  "approvalId",
+  "approvalSlug",
+]);
+var delegationKeys = new Set([
+  "runId",
+  "childSessionKey",
+  "label",
+  "groupId",
+  "runtimeMs",
+  "status",
+]);
 function cleanRecord(value, keys) {
-  if (typeof value != "object" || value === null || Array.isArray(value)) return value;
-  for (let key of Object.getOwnPropertyNames(value)) keys.has(key) || delete value[key];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  for (const key of Object.getOwnPropertyNames(value)) {
+    if (!keys.has(key)) delete value[key];
+  }
   return value;
 }
 function cleanAgentActivityItem(value) {
-  if (
-    (cleanRecord(value, activityKeys),
-    value && typeof value == "object" && Array.isArray(value.delegation))
-  )
-    for (let receipt of value.delegation) cleanRecord(receipt, delegationKeys);
+  cleanRecord(value, activityKeys);
+  if (value && typeof value === "object" && Array.isArray(value.delegation)) {
+    for (const receipt of value.delegation) cleanRecord(receipt, delegationKeys);
+  }
   return value;
 }
 export {
