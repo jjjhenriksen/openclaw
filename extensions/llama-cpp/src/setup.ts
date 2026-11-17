@@ -382,11 +382,13 @@ export async function runLlamaCppSetup(ctx: LlamaCppSetupContext): Promise<Provi
           ? `${formatLlamaCppMemory(hardware.availableRuntimeDiskBytes ?? 0)} free on the runtime volume.`
           : undefined,
         runtimeNote,
+        "Available local model — everyday use not yet verified.",
         recommendation.reason,
         !embeddingModelIsDefault
           ? "This estimate includes the default embedding model; your configured embedding model may need more memory and disk space."
           : undefined,
-        "OpenClaw will check a real tool call before making this your default model.",
+        "OpenClaw will check a real tool call before making this your default model. That check does not measure sustained speed or memory pressure while you use other apps.",
+        "Local inference keeps model processing on this host. Tools and connected services may still send data elsewhere.",
       ]
         .filter(Boolean)
         .join("\n");

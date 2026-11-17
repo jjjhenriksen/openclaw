@@ -364,6 +364,9 @@ describe("llama.cpp managed setup", () => {
     const ctx = authContext(false);
     await expect(runLlamaCppSetup(ctx)).resolves.toEqual({ profiles: [] });
     expectConfirmation(ctx, "verified METAL runtime");
+    expectConfirmation(ctx, "everyday use not yet verified");
+    expectConfirmation(ctx, "memory-fit estimate");
+    expectConfirmation(ctx, "Tools and connected services may still send data elsewhere");
     expectNoDownload();
   });
 

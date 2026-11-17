@@ -291,7 +291,7 @@ export function recommendLlamaCppModel(
     return {
       kind: "recommended",
       recipe,
-      reason: `${recipe.model.name} fits the ${formatLlamaCppMemory(memoryBudgetBytes)} ${placement} budget with a 64K context. Runtime verification checks the actual model before activation.`,
+      reason: `${recipe.model.name} fits the estimated ${formatLlamaCppMemory(memoryBudgetBytes)} ${placement} budget with a 64K context. This is a memory-fit estimate, not a verified everyday-use recommendation. Speed, task quality, and room for your other apps still need testing. Runtime verification checks the actual model before activation.`,
     };
   }
   return {
@@ -299,6 +299,6 @@ export function recommendLlamaCppModel(
     reason:
       candidates.length > 0
         ? "There is not enough free disk space for a recommended model, embeddings, and the runtime. Free space in the model cache and retry setup."
-        : `No recommended model fits the current ${formatLlamaCppMemory(Math.max(0, memoryBudgetBytes))} memory budget. Close other applications and retry, or configure an existing GGUF or external server. For local memory search without a chat model, an embedding-only local server (about 0.3 GB for the default embedding model) can fit instead. Set memory.search.provider to "local" with openclaw config set memory.search.provider local, then re-run openclaw models auth login --provider llama-cpp --method local using the same profile for both commands.`,
+        : `No catalog recipe fits the current ${formatLlamaCppMemory(Math.max(0, memoryBudgetBytes))} memory budget. Connect an AI account instead, or retry when memory is available. This does not mean your computer cannot run local AI. Advanced users can configure an existing GGUF or external server. For local memory search without a chat model, an embedding-only local server (about 0.3 GB for the default embedding model) can fit instead. Set memory.search.provider to "local" with openclaw config set memory.search.provider local, then re-run openclaw models auth login --provider llama-cpp --method local using the same profile for both commands.`,
   };
 }

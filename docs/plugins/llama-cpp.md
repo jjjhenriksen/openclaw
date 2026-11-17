@@ -95,6 +95,11 @@ does not. CPU recommendations stop at Qwen3.5 9B. Gemma 4 E2B, E4B, and 26B A4B
 remain in the catalog for existing routes and cached downloads. The recommendation
 order is a product default, not a claim that one model wins every task.
 
+Setup labels these as available local models, not verified everyday-use recommendations.
+The memory-fit estimate and live tool check do not establish sustained speed, task
+quality, or headroom while your other apps are running. Local inference also does
+not prevent tools or connected services from sending data elsewhere.
+
 These are selection floors, not guaranteed fit or speed. Setup reserves memory
 for the operating system, context cache, runtime, and default embedding model. It accounts
 for current memory pressure and container memory limits, and may recommend a
