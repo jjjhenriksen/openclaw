@@ -15,7 +15,7 @@ jobs:
           - variant: before
             sha: 428d2047b766fcf0e8d426c1d967b0c8697b8625
           - variant: after
-            sha: fb63d409d0232d417bd297970a334bf878cd7f60
+            sha: a466cbebb10c7a9bdee211026b3ea2963eeed415
     env:
       CI: 'true'
       DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
@@ -31,7 +31,9 @@ jobs:
           set -euo pipefail
           git init source
           cd source
-          git fetch --depth=1 https://github.com/openclaw/openclaw.git "$SOURCE_SHA"
+          remote=https://github.com/openclaw/openclaw.git
+          if [[ "$SOURCE_SHA" == a466cbebb10c7a9bdee211026b3ea2963eeed415 ]]; then remote=https://github.com/jjjhenriksen/openclaw.git; fi
+          git fetch --depth=1 "$remote" "$SOURCE_SHA"
           git checkout --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           test "$(uname -m)" = arm64

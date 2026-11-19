@@ -23,9 +23,9 @@ jobs:
           set -euo pipefail
           git init candidate
           cd candidate
-          git fetch --depth=1 https://github.com/openclaw/openclaw.git fb63d409d0232d417bd297970a334bf878cd7f60
+          git fetch --depth=1 https://github.com/jjjhenriksen/openclaw.git a466cbebb10c7a9bdee211026b3ea2963eeed415
           git checkout --detach FETCH_HEAD
-          test "$(git rev-parse HEAD)" = fb63d409d0232d417bd297970a334bf878cd7f60
+          test "$(git rev-parse HEAD)" = a466cbebb10c7a9bdee211026b3ea2963eeed415
           git status -sb
           git rev-parse HEAD
           sw_vers
