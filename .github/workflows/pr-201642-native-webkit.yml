@@ -1,0 +1,51 @@
+name: PR 201642 native WebKit regression
+on:
+  push:
+    branches: [test/pr-201642-native-webkit]
+    paths: [.github/workflows/pr-201642-native-webkit.yml]
+permissions: {}
+jobs:
+  native:
+    runs-on: macos-26
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Fetch and verify exact PR candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init candidate
+          cd candidate
+          git fetch --depth=1 https://github.com/openclaw/openclaw.git fb63d409d0232d417bd297970a334bf878cd7f60
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = fb63d409d0232d417bd297970a334bf878cd7f60
+          git status -sb
+          git rev-parse HEAD
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Install locked dependencies and prepare native assets
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global pnpm@12.15.0
+          pnpm install --frozen-lockfile
+          node scripts/prepare-apple-mermaid.mjs
+      - name: Build native tests
+        working-directory: candidate
+        run: swift build --package-path apps/macos --build-system native --build-tests
+      - name: Run real WebKit regression
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --package-path apps/macos --build-system native --skip-build --filter DashboardOpenClawIDSignInTests 2>&1 | tee "$RUNNER_TEMP/webkit-test.log"
+          grep -E 'Test run with [1-9][0-9]* tests? in [1-9][0-9]* suites? passed' "$RUNNER_TEMP/webkit-test.log" | tee -a "$GITHUB_STEP_SUMMARY"
