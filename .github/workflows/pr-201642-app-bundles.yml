@@ -1,0 +1,64 @@
+name: PR 201642 before and after Mac apps
+on:
+  push:
+    branches: [test/pr-201642-native-webkit]
+    paths: [.github/workflows/pr-201642-app-bundles.yml]
+permissions: {}
+jobs:
+  package:
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: before
+            sha: 428d2047b766fcf0e8d426c1d967b0c8697b8625
+          - variant: after
+            sha: fb63d409d0232d417bd297970a334bf878cd7f60
+    env:
+      CI: 'true'
+      DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+      SOURCE_SHA: ${{ matrix.sha }}
+    steps:
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Fetch and verify exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init source
+          cd source
+          git fetch --depth=1 https://github.com/openclaw/openclaw.git "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(uname -m)" = arm64
+          git status -sb
+          git rev-parse HEAD
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Build actual Mac app and matching Control UI
+        working-directory: source
+        shell: bash
+        env:
+          ALLOW_ADHOC_SIGNING: '1'
+          OPENCLAW_SKIP_MLX_TTS: '1'
+          BUILD_ARCHS: arm64
+        run: |
+          set -euo pipefail
+          package_manager=$(node -p 'require("./package.json").packageManager.split("+")[0]')
+          npm install --global "$package_manager"
+          scripts/package-mac-app.sh
+          codesign --verify --deep --strict dist/OpenClaw.app
+          ditto -c -k --keepParent dist/OpenClaw.app "$RUNNER_TEMP/OpenClaw.zip"
+          du -h "$RUNNER_TEMP/OpenClaw.zip"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: openclaw-mac-${{ matrix.variant }}-${{ matrix.sha }}
+          path: ${{ runner.temp }}/OpenClaw.zip
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
